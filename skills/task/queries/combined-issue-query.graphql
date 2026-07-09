@@ -4,7 +4,10 @@
       blockedBy(first: 20) { nodes { number state stateReason } }
       parent {
         number title
-        subIssues(first: 20) { nodes { number title state } }
+        subIssues(first: 100) {
+          nodes { number title state }
+          pageInfo { hasNextPage endCursor }
+        }
       }
       linkedBranches(first: 5) { nodes { id ref { name } } }
     }

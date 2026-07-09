@@ -63,9 +63,11 @@ Extract and hold in context:
    - **Correct finding** → fix it, one at a time, then report exactly what you changed.
    - **Wrong, YAGNI, or wrong-for-this-stack** → push back. Post the reasoning as a PR comment and record an adjudication entry. Do NOT silently implement it, and do NOT silently drop it.
 
-   **Adjudication log.** A finding rejected with reasoning counts as addressed — the loop does not require obeying it. Each entry states exactly three things: the finding, the decision, and the evidence. No agreement language — no "good catch", no hedging, no apology — just finding + decision + evidence. Keep the running log for this branch.
+   **Adjudication log.** A finding rejected with reasoning counts as addressed — the loop does not require obeying it. Each entry states exactly three things: the finding, the decision, and the evidence. No agreement language — no "good catch", no hedging, no apology — just finding + decision + evidence.
 
-   **After processing all findings:** commit the fixes, run tests (**go back to step 2** on any failure), push, then re-dispatch the reviewer (**go back to step 5**). The re-review dispatch prompt MUST include the adjudication log, so the reviewer sees which findings were rejected and why.
+   The log's durable home is the PR itself: every rejection posts its reasoning as a PR comment (above), so the adjudications survive a crash, a new session, or a resumed `/ship` even though nothing is written to disk. Because of that, do not trust an empty in-memory log on a run you did not start from scratch. At the start of any re-review dispatch — whether this is a fresh `/ship` or a resumed one — **reconstruct the adjudication log before dispatching:** read the PR's comment thread (`gh pr view --json comments` or `gh api`), collect every adjudication entry posted there (finding + decision + evidence), and merge them with any entries held in the current session. Reconstructing first is what keeps the re-flag→escalate rule alive across a resume — without it, a resumed run forgets what was already adjudicated and loops on a finding it should escalate.
+
+   **After processing all findings:** commit the fixes, run tests (**go back to step 2** on any failure), push, then re-dispatch the reviewer (**go back to step 5**). Reconstruct the adjudication log from the PR comments as described above, then re-dispatch — the re-review prompt MUST include the full reconstructed log, so the reviewer sees which findings were rejected and why.
 
    - If the reviewer re-flags a finding already in the adjudication log, do NOT loop on it — escalate to the human with both the finding and your adjudication, and stop.
    - Keep iterating fix/adjudicate → test → push → review until the reviewer returns an APPROVE with every finding either fixed or adjudicated.
@@ -76,11 +78,12 @@ Extract and hold in context:
 
    The branch and PR are pushed and CI runs against the latest commit. Before any merge decision, the PR's checks MUST be green. A clean pr-reviewer verdict does not substitute for green CI — the reviewer reads the diff, CI runs the code.
 
-   - Run `gh pr checks --watch --fail-fast` for the current PR (no argument selects the PR of the current branch). `--watch` blocks until every check reaches a terminal state, so it absorbs the pending case for you.
+   Run `gh pr checks --watch --fail-fast` for the current PR (no argument selects the PR of the current branch), **capturing both its exit code and its output**. `--watch` blocks until every check reaches a terminal state, so it absorbs the pending case for you. The exit code alone cannot tell the three outcomes apart — `gh pr checks` exits `1` both for a failing check **and** for a PR that has no checks at all — so you must read the output, not just the code:
+
+   - **No checks configured** — a repo with no CI. `gh pr checks` writes exactly `no checks reported on the '<branch>' branch` to stderr and exits `1` (verified against the live CLI — same exit code as a failure, which is why the message, not the code, is the discriminator). This is NOT a failure: the gate is vacuously satisfied. Note "no CI checks configured — CI gate skipped" in the ship summary and proceed to step 8. Do NOT route this into the fix loop.
    - **Pending** — never proceed on a pending state. `--watch` already waits; if you are polling by hand instead, re-poll until the checks finish (`gh pr checks` exits `8` while any check is still pending).
    - **All checks pass** (exit `0`) — the gate is satisfied; proceed to step 8.
-   - **Any check fails** (non-zero exit other than pending) — treat each failing check exactly like a review finding. Read the failing job's log, then **go back to step 2**: read `${CLAUDE_PLUGIN_ROOT}/shared/references/debugging.md`, fix the cause, commit, and let the fix flow back through tests, push, and re-review before returning here. Never merge over a red check.
-   - **No checks configured** — if gh reports no checks on the branch (a repo with no CI), the gate is vacuously satisfied; proceed.
+   - **A check fails** — a non-zero exit whose output is a real check result (not the "no checks reported" message above). Treat each failing check exactly like a review finding. Read the failing job's log, then **go back to step 2**: read `${CLAUDE_PLUGIN_ROOT}/shared/references/debugging.md`, fix the cause, commit, and let the fix flow back through tests, push, and re-review before returning here. Never merge over a red check.
 
 8. **Auto-merge decision (`ship.autoMerge`):**
 
@@ -113,8 +116,9 @@ Extract and hold in context:
    For each issue this run set to Done, check whether it has a parent and whether that parent's other sub-issues are now all closed. The combined-issue query already returns exactly this shape — the issue's `parent` plus that parent's `subIssues` with their `state` — so run `${CLAUDE_PLUGIN_ROOT}/skills/task/queries/combined-issue-query.graphql` for the Done issue's number (substitute owner, repo, number) rather than composing raw API calls.
 
    - **No `parent`** — nothing to roll up.
-   - **Parent still has open `subIssues`** — leave the parent alone; it has live children.
-   - **Every one of the parent's `subIssues` is closed** — post a comment on the parent (`gh issue comment <parentNumber>`) stating that all of its sub-issues are complete and it is ready for human review and closure. NEVER close the parent automatically — parent closure is always a human decision.
+   - **`subIssues.pageInfo.hasNextPage` is `true`** — the parent has more sub-issues than this page returned (the query fetches `first: 100`). Do NOT declare the parent complete from a partial page: paginate through the rest (`after` the returned end cursor, or fetch the parent's sub-issues directly) and only judge completeness once every sub-issue's `state` is in hand. A parent that looks all-closed on page one may still have an open child on page two.
+   - **Parent still has open `subIssues`** (across all pages) — leave the parent alone; it has live children.
+   - **Every one of the parent's `subIssues` is closed** (confirmed across all pages) — post a comment on the parent (`gh issue comment <parentNumber>`) stating that all of its sub-issues are complete and it is ready for human review and closure. NEVER close the parent automatically — parent closure is always a human decision.
 
 ## Notes
 
