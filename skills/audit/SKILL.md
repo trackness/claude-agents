@@ -62,6 +62,7 @@ Orchestration and the per-item approval gate live here in the main loop. The bul
    - Fetch all open GitHub issues: `gh issue list --state open --limit 200 --json number,title,labels` — these are already tracked; do not duplicate them.
    - Take a cheap measure of repo size (`git ls-files | wc -l`, top-level layout) — this sizes the fan-out in step 2.
    - If the user named a scope (a single dimension, a directory, or a concern), narrow every stream below to that scope instead of sweeping the whole tree.
+   - **Record the working-tree baseline** — run `git status --porcelain` before dispatching any subagent and keep the output. The read-only gate at the end of the fan-out compares against this snapshot to prove the investigation wrote nothing.
 
 2. **Investigation fan-out (parallel subagents via the Agent tool):**
 
@@ -91,6 +92,14 @@ Orchestration and the per-item approval gate live here in the main loop. The bul
    - Unchecked checklist items in documentation (README/docs task lists, design-doc open questions).
 
    Each harvested item carries its **source location** through to the issue body (e.g. `Source: src/api/handler.ts:88 (TODO comment)` or `Source: ROADMAP.md — "rate-limit the upload endpoint"`), so the trail from declared intent to filed issue is auditable. Harvested items enter the exact same draft → dedupe → approve → create pipeline as the dimension findings; there is no separate track.
+
+   **Read-only gate — post-condition on the whole fan-out (hard gate).** Every subagent across all three streams was chartered to read and report, never to write. The moment all of them have returned — and before the adversarial verification pass, the dedupe, or any draft — prove that guarantee held. Run:
+
+   ```bash
+   git status --porcelain
+   ```
+
+   Its output must be byte-for-byte identical to the baseline recorded in step 1. Any added, changed, or removed line means a subagent created, modified, or deleted a file — a read-only violation, not a finding. On any difference, **HALT the audit immediately**: do not run the verification pass, do not dedupe, do not draft, do not open the approval gate, and create nothing. Report exactly what changed — the differing `git status --porcelain` lines, verbatim — and stop until the tree is restored to the baseline and the cause is understood. This gate is mechanical and fail-closed: a changed tree is always a halt, never a caveat to note and pass.
 
 4. **Adversarial verification pass (before findings reach the approval gate):**
 
