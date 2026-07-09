@@ -1,6 +1,6 @@
 ---
 name: promote
-description: Promote a Backlog issue to Ready with a full specification. Use when a Backlog idea needs to become implementable.
+description: Use when a Backlog idea needs to become implementable — a rough issue turned into a Ready, fully-specified item.
 disable-model-invocation: true
 argument-hint: "<issue-number>"
 ---

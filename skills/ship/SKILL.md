@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Land the current feature branch on main. Use when work on a branch is complete and ready to ship.
+description: Use when work on a feature branch is complete and ready to land on main.
 disable-model-invocation: true
 ---
 

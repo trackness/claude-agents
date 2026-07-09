@@ -289,6 +289,7 @@ flowchart LR
     C -- Yes --> E[Hook script runs]
     E --> F{Decision}
     F -- allow --> D
+    F -- ask --> J[User confirmation prompt]
     F -- deny --> G[Tool blocked]
     G --> H[Reason sent to Claude]
     H --> I[Claude adjusts approach]
