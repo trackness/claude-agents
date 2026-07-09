@@ -54,7 +54,7 @@ The gap analysis is chartered against these dimensions. Each investigation sweep
 
 ## Workflow
 
-Orchestration and the per-item approval gate live here in the main loop. The bulk reading — the repo sweeps, the stack-reference review, and the ingestion harvest — is dispatched to parallel subagents. The main loop never hands a subagent the power to write: subagents read and report, and only the main loop, with the user's per-item approval, creates issues or edits the board.
+Orchestration and the per-item approval gate live here in the main loop. The bulk reading — the repo sweeps, the stack-reference review, the ingestion harvest, and the adversarial verification of what they report — is dispatched to parallel subagents. The main loop never hands a subagent the power to write: subagents read and report, and only the main loop, with the user's per-item approval, creates issues or edits the board.
 
 1. **Read the lightweight state (main loop):**
    - Read CLAUDE.md — understand what the project does and its tech stack.
@@ -62,7 +62,7 @@ Orchestration and the per-item approval gate live here in the main loop. The bul
    - Fetch all open GitHub issues: `gh issue list --state open --limit 200 --json number,title,labels` — these are already tracked; do not duplicate them.
    - Take a cheap measure of repo size (`git ls-files | wc -l`, top-level layout) — this sizes the fan-out in step 2.
    - If the user named a scope (a single dimension, a directory, or a concern), narrow every stream below to that scope instead of sweeping the whole tree.
-   - **Record the working-tree baseline** — run `git status --porcelain` before dispatching any subagent and keep the output. The read-only gate at the end of the fan-out compares against this snapshot to prove the investigation wrote nothing.
+   - **Record the working-tree baseline** — run `git status --porcelain` before dispatching any subagent and keep the output. The read-only gate re-runs after every subagent wave and compares against this snapshot to prove the investigation wrote nothing.
 
 2. **Investigation fan-out (parallel subagents via the Agent tool):**
 
@@ -93,21 +93,26 @@ Orchestration and the per-item approval gate live here in the main loop. The bul
 
    Each harvested item carries its **source location** through to the issue body (e.g. `Source: src/api/handler.ts:88 (TODO comment)` or `Source: ROADMAP.md — "rate-limit the upload endpoint"`), so the trail from declared intent to filed issue is auditable. Harvested items enter the exact same draft → dedupe → approve → create pipeline as the dimension findings; there is no separate track.
 
-   **Read-only gate — post-condition on the whole fan-out (hard gate).** Every subagent across all three streams was chartered to read and report, never to write. The moment all of them have returned — and before the adversarial verification pass, the dedupe, or any draft — prove that guarantee held. Run:
+   **Read-only gate — post-condition on every subagent wave (hard gate).** Every subagent — the investigation fan-out (steps 2–3) and the verification wave (step 4) alike — was chartered to read and report, never to write. The moment a wave's subagents have all returned — and before anything downstream consumes what they reported — prove that guarantee held. Run:
 
    ```bash
    git status --porcelain
    ```
 
-   Its output must be byte-for-byte identical to the baseline recorded in step 1. Any added, changed, or removed line means a subagent created, modified, or deleted a file — a read-only violation, not a finding. On any difference, **HALT the audit immediately**: do not run the verification pass, do not dedupe, do not draft, do not open the approval gate, and create nothing. Report exactly what changed — the differing `git status --porcelain` lines, verbatim — and stop until the tree is restored to the baseline and the cause is understood. This gate is mechanical and fail-closed: a changed tree is always a halt, never a caveat to note and pass.
+   Its output must be byte-for-byte identical to the baseline recorded in step 1. Any added, changed, or removed line means a subagent created, modified, or deleted a file — a read-only violation, not a finding. On any difference, **HALT the audit immediately**: do not advance to any further wave, do not dedupe, do not draft, do not open the approval gate, and create nothing. Report exactly what changed — the differing `git status --porcelain` lines, verbatim — and stop until the tree is restored to the baseline and the cause is understood. This gate is mechanical and fail-closed: a changed tree is always a halt, never a caveat to note and pass.
 
-4. **Adversarial verification pass (before findings reach the approval gate):**
+4. **Adversarial verification pass (parallel read-only skeptic subagents):**
 
-   Do not trust the subagent reports at face value — a fan-out that reports clean or over-reports is a known failure mode. Run a verification pass over the collected findings before any of them reach the user:
-   - Spot-check each finding against the actual code it cites — a finding whose file:line does not say what the report claims is dropped. A fabricated finding either wastes an approval or gets a non-bug "fixed".
-   - Reconcile overlaps from the fan-out — same gap reported by two streams collapses to one finding.
-   - Treat **"cannot verify"** as a valid outcome: a finding you cannot confirm against the code is demoted or dropped, never passed through on the subagent's word.
-   Shape this pass like a skeptical reviewer of the subagents' work, not a rubber stamp.
+   Do not trust the subagent reports at face value — a fan-out that reports clean or over-reports is a known failure mode. But verifying the findings is itself bulk reading: confirming each one means opening the code it cites, and doing that in the main loop stacks dozens of file reads into root context — the exact load the fan-out exists to keep out. So the verification pass is a **second parallel wave of read-only subagents**, chartered as skeptics whose job is to **refute the findings, not rubber-stamp them**.
+
+   Group the collected findings so each group's cited code is coherent (by stream, by dimension, or by directory), and hand each group to one skeptic subagent. Each skeptic:
+   - **Checks every finding against the actual code it cites** — open the file:line and confirm it says what the report claims. A finding whose cited location does not bear out the claim does not survive on the reporter's word.
+   - **Reconciles overlaps within its own group** — two findings naming the same gap collapse to one.
+   - **Returns a per-finding verdict**: **CONFIRMED** (the cited code bears out the claim), **REFUTED** (the cited code contradicts it), or **CANNOT-VERIFY** (the cited location does not confirm it and the skeptic cannot confirm it elsewhere). **CANNOT-VERIFY demotes or drops the finding — never pass it through on the reporter's word.** Attach the evidence behind every verdict.
+
+   Charter each skeptic with the same **dispatch discipline** as step 2: **focused** (one coherent group of findings, non-overlapping with the other skeptics), **self-contained** (the prompt carries the findings to check, their cited file:line locations, and the refute-not-rubber-stamp charter; the subagent must not create issues, edit the board, branch, or commit — it reads and reports only), and **output-format-specified** (per finding: the CONFIRMED / REFUTED / CANNOT-VERIFY verdict and its evidence). Each skeptic also reports its own completion in the four-state vocabulary — **DONE**, **DONE_WITH_CONCERNS**, **BLOCKED**, **NEEDS_CONTEXT** — and BLOCKED or NEEDS_CONTEXT streams are re-dispatched with the missing piece, never accepted as a partial verification.
+
+   When the skeptics return, run the **read-only gate above** again before any verdict reaches the dedupe or a draft. Then reconcile overlaps **across** groups in the main loop — the same gap surfaced by two different skeptic groups collapses to one finding. This cross-group reconciliation stays in the main loop because it needs the full surviving set and is cheap; only the per-group verification and within-group merge fan out.
 
 5. **Cross-reference (dedupe against what already exists):**
    - Do not suggest tasks already open in GitHub Issues.
