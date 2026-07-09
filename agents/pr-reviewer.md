@@ -135,11 +135,11 @@ There is no "approve with comments" verdict. It would be ambiguous against the m
 - High priority issues: X
 - Risk level if merged as-is: LOW/MEDIUM/HIGH/CRITICAL
 
-**Must Address Before Merge:**
-(Bullet list of critical/high items)
+**Must Address Before Merge** — every finding above NITPICK (CRITICAL, HIGH, MEDIUM, and LOW all block merge):
+(Bullet list of every finding at LOW severity or above)
 
-**Suggested Improvements:**
-(Bullet list of medium/low items)
+**Nitpicks** — non-blocking; these do NOT gate merge and an APPROVE may ship with them open:
+(Bullet list of NITPICK items only)
 
 **Questions for Author:**
 (Anything unclear or requiring discussion)
