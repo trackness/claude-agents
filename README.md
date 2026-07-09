@@ -155,12 +155,12 @@ stateDiagram-v2
 ```mermaid
 flowchart TD
     A["/capture (idea text or issue number)"] --> B{Input}
-    B -- Idea text --> C[Draft title + templated body]
-    B -- Issue number --> D[Adopt existing issue]
+    B -- Idea text --> C[New-idea path]
+    B -- Issue number --> D[Adopt path]
     C --> E[Dedupe check vs open issues + board]
     D --> E
     E -- Likely duplicate --> F[Surface: adopt / extend / create anyway]
-    E -- Unique --> G[Suggest labels + Type]
+    E -- Unique --> G[Draft: title + body + labels + Type]
     F --> G
     G --> H{User approves?}
     H -- No --> Z[Stop: no writes]
@@ -260,6 +260,7 @@ flowchart TD
     H -- Rejected --> J[Skip]
     I --> H
     J --> H
+    H -- All items processed --> K["Draft cleanup issue (Ready): migrated TODO / FIXME / ROADMAP sources, removed later via /task"]
 ```
 
 ### /status Flow
