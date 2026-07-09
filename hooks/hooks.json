@@ -7,21 +7,21 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/no-commit-main.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/no-commit-main.sh",
             "timeout": 10,
             "statusMessage": "Checking branch protection..."
           },
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/no-hook-bypass.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/no-hook-bypass.sh",
             "timeout": 5,
             "statusMessage": "Checking for hook bypass..."
           },
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/doc-staleness-check.sh",
-            "timeout": 15,
-            "statusMessage": "Checking documentation staleness..."
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/enforce-merge-gate.sh",
+            "timeout": 5,
+            "statusMessage": "Checking merge gate..."
           }
         ]
       },
@@ -30,26 +30,9 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/enforce-agent-model.sh",
-            "timeout": 5,
-            "statusMessage": "Checking agent model..."
-          },
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/enforce-pr-reviewer.sh",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/enforce-pr-reviewer.sh",
             "timeout": 5,
             "statusMessage": "Checking PR reviewer agent..."
-          }
-        ]
-      },
-      {
-        "matcher": "Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/enforce-memory-approval.sh",
-            "timeout": 5,
-            "statusMessage": "Checking memory write permissions..."
           }
         ]
       }
