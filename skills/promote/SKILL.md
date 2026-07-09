@@ -36,11 +36,20 @@ In the commands below, a placeholder like `<fields.priority.options.CHOSEN>` (an
    - Verify it exists on the project with Backlog status via `gh project item-list <project.number> --owner <owner> --limit 200 --format json`
    - If not Backlog: warn and confirm before proceeding
 
-2. **Research the implementation:**
-   - Read relevant source files to understand the current codebase
-   - Identify which files would need to change
-   - Estimate Effort (Trivial/Low/Medium/High/Highest) and Priority (Critical/High/Medium/Low/Lowest)
-   - Check open GitHub issues (`gh issue list --state open --limit 200`) for related work (potential dependencies)
+2. **Research the implementation (dispatched read-only readers):**
+
+   The bulk sweep is not main-loop work. Dispatch one or more read-only reader subagents via the Agent tool to sweep the codebase, and synthesize the structured map they return rather than reading the tree yourself. Size the fan-out to the work — a narrow idea may need one reader, a cross-cutting one several partitioned by area.
+
+   Each reader returns:
+   - **Affected files** — the files a change would touch, each with its single responsibility.
+   - **Existing patterns and constraints** — the conventions, abstractions, and invariants the work must fit.
+   - **Integration points** — the seams (callers, callees, config, data) the change wires into.
+   - **Related open issues** — from `gh issue list --state open --limit 200`, the issues that are potential dependencies or overlaps.
+   - **Effort signals** — the size and complexity evidence that grounds the Effort estimate (Trivial/Low/Medium/High/Highest) and the Priority estimate (Critical/High/Medium/Low/Lowest).
+
+   **Dispatch discipline** — every reader prompt is **focused** (one bounded slice, non-overlapping scope), **self-contained** (it sees only what the prompt gives it; state the paths or area to cover and that it must not create issues, edit the board, branch, or commit — it reads and reports only), and **output-format-specified** (the exact map shape above, so no second round-trip). This is the same fan-out style as audit's investigation.
+
+   The orchestrating session keeps only **targeted reads during the step-3 dialogue** — when a specific question needs a primary-source detail the map did not settle, it opens that one file surgically. That is bounded and surgical; it is never a re-sweep of the tree.
 
 3. **Specify the issue (inline Socratic dialogue):**
 
@@ -58,7 +67,8 @@ In the commands below, a placeholder like `<fields.priority.options.CHOSEN>` (an
    - **Internal consistency** — Why, Implementation, Files, Testing, and Acceptance Criteria agree with one another; no section contradicts another.
    - **Scope check** — every item in scope is needed, nothing speculative survived the YAGNI cut, and the Effort estimate matches the described work.
    - **Ambiguity check** — a fresh implementer could build this without asking a question. Any sentence open to two readings gets rewritten.
-   - For a **high-stakes promotion** (large blast radius, security-sensitive, or Highest-effort), optionally dispatch an adversarial spec-review subagent via the Agent tool: give it only the drafted issue body and instruct it to hunt for gaps, contradictions, unstated assumptions, and untestable acceptance criteria — reporting findings without trusting the draft. Fold its findings back in before presenting.
+
+   **Adversarial spec-review (mandatory — every promotion).** After the four checks above pass, ALWAYS dispatch one fresh-context spec-review subagent via the Agent tool. Give it ONLY the drafted issue body — no research map, no dialogue history, no reasoning that led here. Charter it to refute: hunt gaps, contradictions, unstated assumptions, and untestable acceptance criteria, and report its findings without trusting the draft. A fresh mind reads the spec the way the future implementer will: cold. Fold its findings back into the body before presenting the draft in step 5. This dispatch is never skipped — not for a small issue, not for an obvious one, not under time pressure, not because the self-review already passed.
 
 4. **Won't Do exit (when the honest conclusion is "don't do this"):**
 
