@@ -30,7 +30,7 @@ Extract and hold in context:
 
 ## Contract
 
-Capture performs **no writes until the user approves** the drafted item. It **never** creates a branch, never commits, and never writes a file to disk. Its only writes — reached only after explicit approval — are: create (or adopt) the issue, add it to the board, set Status to Backlog, and apply the confirmed labels and Type. Nothing else.
+Capture performs **no writes until the user approves** the drafted item. It **never** creates a branch, never commits, and never writes a file to disk. Its only writes — reached only after explicit approval — are: create (or adopt) the issue; on the adopt path, reshape the adopted issue's body to the template where (and only where) the user approved that reshape in steps 3 and 5; add it to the board; set Status to Backlog; and apply the confirmed labels and Type. Nothing else — and every one of these, the body reshape included, stays behind the same approval gate.
 
 ## Workflow
 
