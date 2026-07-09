@@ -30,13 +30,13 @@ Extract and hold in context:
 
 1. **Select the issue(s) to work:**
    - **Arguments given** → work those issue numbers in the order supplied. Multiple numbers are a **batch**: run the entire cycle (locate → claim → branch → implement → ship) to completion for the first number, then repeat it from the top for the next, and so on. Batches are sequential full cycles — never interleave two issues on one branch, and never start the second before the first has shipped.
-   - **No argument** → pull the top item off the **Ready** queue using the queue-ordering rule defined in `/status` (its canonical home — do not restate the rule here, and do not order the queue by any other criteria). Announce which issue you selected and why before doing anything else.
+   - **No argument** → pull the top item off the **Ready** queue using the queue-ordering rule defined in `/status` (its canonical home — do not restate the rule here, and do not order the queue by any other criteria). That rule's final tiebreak is oldest `createdAt` first, and the board read (`gh project item-list`) does not carry `createdAt`, so fetch it alongside the board — `gh issue list --state open --limit 200 --json number,createdAt` — and join it to the board items by issue number to break Priority/Effort ties. Announce which issue you selected and why before doing anything else.
 
 2. **Locate on the board and detect a resume:**
    - Fetch project data: `gh project item-list <project.number> --owner <owner> --limit 200 --format json` — locate by `content.number`.
    - If not found: the issue exists in GitHub but is not on the project board. Prompt "Issue #<n> is not on the project board. Add it? (y/n)". If yes, add it and configure it, then proceed. If no, exit.
    - Run the combined GraphQL query from `${CLAUDE_SKILL_DIR}/queries/combined-issue-query.graphql` to get dependencies, sub-issue siblings, and linked branches in one call. Substitute owner, repo, and issue number.
-   - **Resume path:** If the item's Status is already **In Progress** and it has a **linked branch**, this is in-flight work. Do NOT re-branch and do NOT re-claim. Fetch and check out the linked branch, then assess where it stands — `git log`, `git diff <base>...HEAD`, and run the test command from project.json — and continue from there. Skip the claim (step 5) and branch creation (step 6) and resume at Implement (step 8).
+   - **Resume path:** If the item's Status is already **In Progress** and it has a **linked branch**, this is in-flight work. Do NOT re-branch and do NOT re-claim. Fetch and check out the linked branch, then assess where it stands — `git log`, `git diff <base>...HEAD`, and run the test command from project.json — and continue from there. Skip the claim (step 5) and branch creation (step 6) and resume at Implement (step 8). Note: `linkedBranches` is populated only by task's own step-6 link mutation (GitHub's dev-panel branch link), not by the mere existence of a PR — an In Progress issue whose branch was never linked through that mutation has no `linkedBranches` node and falls to the no-linked-branch handling below by design, not by accident.
    - **In Progress with no linked branch:** ambiguous — either a concurrent session holds it or it is a stuck claim. Stop and ask the user whether to adopt it (check out or create a branch and continue) or leave it alone. Do not silently start a second branch on it.
    - **Sub-issue sibling check:** If the issue has a `parent` with sibling `subIssues`, check whether any siblings are also Ready and should be co-implemented on one shared branch. Prompt the user with the sibling list before deciding.
 
@@ -46,6 +46,7 @@ Extract and hold in context:
 
 4. **Check dependencies:**
    - Use the `blockedBy` field from the combined GraphQL query in step 2
+   - **Pagination guard (hard gate):** the query fetches `blockedBy(first: 100)` with `pageInfo`. If `blockedBy.pageInfo.hasNextPage` is `true`, this issue has more blockers than one page returned. Do NOT let the gate pass on the partial page — paginate through the rest (`after` the returned `endCursor`) and only judge the gate once every blocker's state is in hand. An unseen OPEN blocker on page two must never green-light work.
    - `state: CLOSED`, `stateReason: COMPLETED` → satisfied
    - `state: CLOSED`, `stateReason: NOT_PLANNED` → warn developer, continue
    - `state: CLOSED`, `stateReason: DUPLICATE` → the blocker was closed as a duplicate; the actual work lives in its canonical issue, not here. Find the canonical issue (named in the duplicate's close event or its comments) and confirm that one is CLOSED/COMPLETED. Only then treat the dependency as satisfied — if the canonical is still open, warn and stop exactly as for an open blocker.
@@ -76,13 +77,21 @@ Extract and hold in context:
    - **No Placeholders.** These are plan failures — a decomposition containing any of them is not done: "TBD", "add appropriate error handling", "similar to task N", or any step that describes without showing.
    - Reconcile the decomposition against the issue's Implementation and Files sections; flag any drift to the developer before proceeding.
 
-8. **Implement using TDD:**
-   - Read and follow `${CLAUDE_PLUGIN_ROOT}/shared/references/tdd.md`.
-   - **Treat Implementation and Files sections as guidance** — inspect actual current code state first; flag significant drift to the developer before proceeding
+8. **Implement (dispatched implementer subagents):**
 
-9. **Verify before marking complete:**
+   Implementation is performed by dispatched implementer subagents, orchestrated and instructed by this session. The orchestrating session does not write feature code itself — it decomposes (step 7), dispatches, verifies, and owns all state.
+
+   - **Inspect actual current code first.** The issue's Implementation and Files sections are guidance; the current tree is truth. Read the real state before dispatching, flag significant drift to the developer, and carry the true current state into every implementer's instruction.
+   - **One implementer per sub-task.** For each decomposed sub-task from step 7 — whose Interfaces: Consumes/Produces block and per-task failing test exist precisely for this handoff — dispatch ONE implementer subagent via the Agent tool. Its self-contained instruction carries: the sub-task's file(s) and single responsibility; the Interfaces block (the signatures it consumes and produces); the failing test to write first; the verify command and its expected output; the instruction to read and follow `${CLAUDE_PLUGIN_ROOT}/shared/references/tdd.md`; and its boundary — it implements ONLY this sub-task, no scope creep beyond it, no board access, no commits, no push.
+   - **Trivial/Low tasks (not decomposed):** the whole issue is a single sub-task. Dispatch one implementer for it, carrying the issue's Implementation, Files, Testing, and Acceptance Criteria in place of a decomposition block. Same boundary, same reporting, same orchestrator-owns-state rule below.
+   - **Sequential dispatch only — parallel implementers are forbidden.** The implementers share one working tree; two writing it at once corrupt each other's diffs and tests. Dispatch one, let it return, verify and commit, and only then dispatch the next. Parallelism lives at the sub-issue level (separate branches), never inside a single task. This is a hard rule with no fast-path exception.
+   - **The implementer reports one of:** DONE (its test passes, boundary held), DONE_WITH_CONCERNS (done, caveats attached), BLOCKED (could not proceed — says why), NEEDS_CONTEXT (needs input the instruction did not supply). On BLOCKED or NEEDS_CONTEXT the orchestrator supplies the missing piece and re-dispatches; if it cannot supply it, it applies the stuck-state rule below rather than forcing through.
+   - **The orchestrator owns all state.** After each implementer returns, the orchestrator — never on the implementer's word — re-runs the sub-task's test itself for fresh evidence (per `${CLAUDE_PLUGIN_ROOT}/shared/references/verification.md`), reviews the diff against the sub-task instruction, and only then commits. Every git write and every board write is the orchestrator's; exactly one mind touches state.
+   - **Model choice per sub-task** — pick each implementer's model to fit the sub-task's complexity; the orchestrating session is reserved for orchestration, verification, and judgment, not for writing the code.
+
+9. **Verify before marking complete (orchestrator-side):**
    - Read and follow `${CLAUDE_PLUGIN_ROOT}/shared/references/verification.md`.
-   - Use Acceptance Criteria as the definition of done, in conjunction with the verification reference
+   - Use Acceptance Criteria as the definition of done, in conjunction with the verification reference. This acceptance-criteria check is the orchestrator's own — run against fresh evidence, never taken on any implementer's word.
 
 10. **Documentation check:**
     - Review what this task changed: new dependencies, deleted/renamed files, tech stack changes, workflow changes.
