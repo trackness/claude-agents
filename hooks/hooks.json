@@ -36,6 +36,19 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/hooks/setup-nudge.sh",
+            "timeout": 5,
+            "statusMessage": "Checking gh-pm setup..."
+          }
+        ]
+      }
     ]
   }
 }

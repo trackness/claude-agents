@@ -11,6 +11,8 @@ The gh-pm plugin ships hooks that intercept tool calls before they run. They are
 | `enforce-pr-reviewer.sh` | PR reviews must run the `gh-pm:pr-reviewer` agent |
 | `enforce-merge-gate.sh` | `gh pr merge` pauses for your confirmation when `ship.autoMerge` is `false` |
 
+Beyond these four enforcement hooks, a fifth hook — `setup-nudge.sh` — runs at session start as an onboarding aid, not a guardrail. In a repo with a GitHub remote that is not fully configured for gh-pm, it offers `/setup-project` (to bootstrap, or to migrate a `.claude/project.json` predating the current schema). It never blocks anything and stays silent once the repo is configured or if you create a `.claude/gh-pm-optout` file.
+
 ---
 
 ## Skill Routing

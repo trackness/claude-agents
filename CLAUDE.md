@@ -77,7 +77,7 @@ This is a Claude Code plugin, not a standalone application. It ships agents, hoo
 A Claude Code plugin (`gh-pm@trackness`) containing:
 
 1. **1 agent** — `pr-reviewer` in `agents/`
-2. **4 enforcement hooks** — shell scripts in `hooks/`, configured via `hooks/hooks.json`
+2. **5 hooks** — shell scripts in `hooks/`, configured via `hooks/hooks.json` (4 enforcement hooks + 1 session-start onboarding nudge)
 3. **7 skills** — markdown-driven workflows in `skills/*/SKILL.md`
 4. **Shared library** — vendored methodology references, stack review criteria, and deduplicated templates/queries in `shared/`
 
@@ -89,7 +89,7 @@ Consumers install via `claude plugin install gh-pm@trackness`. The marketplace l
 Markdown files with frontmatter (`name`, `description`). Claude Code discovers them automatically. Users invoke with `subagent_type: "gh-pm:<agent-name>"`.
 
 ### Hooks (`hooks/hooks.json` + scripts)
-`hooks.json` registers PreToolUse hooks with matchers (Bash, Agent). Each hook runs a shell script that receives tool call JSON on stdin and outputs a deny/allow decision. Exit 0 = allow. JSON with `permissionDecision: "deny"` = block; `permissionDecision: "ask"` = prompt the user.
+`hooks.json` registers PreToolUse hooks (matchers Bash, Agent) and one SessionStart hook (matcher `startup|resume|clear`). Each hook runs a shell script that receives event JSON on stdin. A PreToolUse hook outputs a deny/allow decision: exit 0 = allow; JSON with `permissionDecision: "deny"` = block; `permissionDecision: "ask"` = prompt the user. The SessionStart hook (`setup-nudge.sh`) is onboarding/discovery rather than enforcement — it never blocks anything; it stays silent or emits `hookSpecificOutput.additionalContext` to nudge an unconfigured repo toward `/setup-project`.
 
 Hook scripts must be executable (`chmod +x`). They reference themselves via `${CLAUDE_PLUGIN_ROOT}/hooks/<script>.sh`.
 
@@ -106,11 +106,12 @@ Skills that interact with GitHub Projects read configuration from `.claude/proje
 agents/
   pr-reviewer.md        PR review agent (reads stack criteria from shared/references/stacks/)
 hooks/
-  hooks.json            Hook registrations (PreToolUse matchers + script paths)
+  hooks.json            Hook registrations (PreToolUse + SessionStart matchers + script paths)
   no-commit-main.sh     Block commits to the default branch
   no-hook-bypass.sh     Block --no-verify (and abbreviations)
   enforce-pr-reviewer.sh  Block non-gh-pm PR reviewers
   enforce-merge-gate.sh   Ask before merge when ship.autoMerge is false
+  setup-nudge.sh          Session-start onboarding nudge (offer /setup-project; schema migration; opt-out)
 shared/                 Library shared across skills and the agent
   references/
     tdd.md              Vendored TDD methodology (task step 8)

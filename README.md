@@ -43,6 +43,12 @@ Enforcement hooks that intercept tool calls at the point of action. They are gua
 | `enforce-pr-reviewer.sh` | PR review agents that aren't `gh-pm:pr-reviewer` | Agent |
 | `enforce-merge-gate.sh` | `gh pr merge` when `ship.autoMerge` is `false` — prompts for confirmation | Bash |
 
+One further hook is a discovery aid, not a guardrail — it runs at session start and never blocks a tool call:
+
+| Hook | Fires at | Behavior |
+|------|----------|----------|
+| `setup-nudge.sh` | Session start (`startup`/`resume`/`clear`) | In a repo that has a GitHub remote but is not fully configured for gh-pm, injects one line of context offering `/setup-project`. Two triggers: no `.claude/project.json` (bootstrap), or a `project.json` predating the current config schema (non-destructive migration). Stays silent when the repo is configured, when there is no GitHub remote, or when a `.claude/gh-pm-optout` sentinel exists (durable opt-out). |
+
 ## Project Configuration
 
 Skills read project-specific IDs from `.claude/project.json` in each repo. This file is created by `/setup-project` and contains:
@@ -80,7 +86,8 @@ gh-pm/
 │   ├── no-commit-main.sh                # Block commits to the default branch (allow amend)
 │   ├── no-hook-bypass.sh                # Block --no-verify (and abbreviations)
 │   ├── enforce-pr-reviewer.sh           # Block non-gh-pm PR reviewers
-│   └── enforce-merge-gate.sh            # Ask before merge when ship.autoMerge is false
+│   ├── enforce-merge-gate.sh            # Ask before merge when ship.autoMerge is false
+│   └── setup-nudge.sh                   # Session-start onboarding nudge (offer /setup-project; opt-out)
 │
 ├── shared/                              # Shared across every skill and the agent
 │   ├── references/
