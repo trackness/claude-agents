@@ -53,7 +53,7 @@ Extract and hold in context:
    - **Any other combination** (an unexpected or null `stateReason`, or anything not matched above) → do NOT assume the dependency is satisfied. Warn the developer, surface the raw state/stateReason, and stop until the prerequisite is confirmed resolved.
 
 5. **Claim the issue (concurrency guard):**
-   - Set the item's Status to **In Progress**. This is the **first board write, and it happens before branch creation and before any implementation work** — claiming immediately is what stops a second session from grabbing the same item. It matters most on the no-argument path, where two sessions reading the queue would otherwise both pick the same top item and double-grab it.
+   - Set the item's Status to **In Progress** before branch creation and before any implementation work. On the **no-argument queue-pop path** this claim is the first board write for the item, and claiming it immediately is the concurrency guard — two sessions reading the Ready queue would otherwise both pick the same top item and double-grab it, so the claim must land before anything else. (On the argument path there is no queue contention, and if step 2 added the issue to the board that add already wrote to the board ahead of this claim — the strict "claim first" ordering carries weight only for the queue-pop case, where it prevents the double-grab.)
      ```bash
      ITEM_ID=$(gh project item-list <project.number> --owner <owner> --limit 200 --format json | jq -r '.items[] | select(.content.number == <n>) | .id')
      gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
