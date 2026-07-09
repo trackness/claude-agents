@@ -34,7 +34,7 @@ The single item at the top of this ordering is exactly what `/task` claims when 
 
 1. **Read the board and the issue list:**
    - `gh project item-list <project.number> --owner <owner> --limit 200 --format json` — all items across all statuses, with their Priority, Effort, and Status fields.
-   - `gh issue list --state open --limit 200 --json number,title,labels,createdAt,updatedAt` — every open issue, to find ones missing from the board. (`createdAt` supports queue-order tiebreaks; `updatedAt` supports staleness reasoning. The Done-throughput signal in step 5 reads its own `updatedAt` over closed issues, since Done items have usually closed and are absent here.)
+   - `gh issue list --state open --limit 200 --json number,title,labels,createdAt,updatedAt` — every open issue, to find ones missing from the board. (`createdAt` supports queue-order tiebreaks; `updatedAt` supports staleness reasoning. The Done-throughput signal in step 5 reads its own `closedAt` over closed issues, since Done items have usually closed and are absent here.)
 
 2. **Ready queue:**
    - Filter to Status = Ready and sort by the queue-ordering rule above.
@@ -52,7 +52,7 @@ The single item at the top of this ordering is exactly what `/task` claims when 
 
 5. **Counts:**
    - Number of Backlog items awaiting `/promote`.
-   - Number of items moved to Done recently — a throughput signal. Take the board's Status = Done items and read each one's issue `updatedAt`, counting those inside the last ~7 days (fall back to the most recent handful if that window is empty). Done issues are usually closed (they close on merge via `closes #<n>`), so they will not appear in the `--state open` read from step 1 — fetch their `updatedAt` with a targeted `gh issue list --state all --json number,updatedAt` (or `--state closed`) joined to the Done items by number. **Caveat:** `issue.updatedAt` advances on any edit to an issue (a comment, a label, a body change), not only on the move to Done, so this figure approximates Done-movement rather than measuring it — read it as a rough throughput signal, never an exact count of what shipped.
+   - Number of items moved to Done recently — a throughput signal. Take the board's Status = Done items and read each one's issue `closedAt`, counting those inside the last ~7 days (fall back to the most recent handful if that window is empty). Done issues are usually closed (they close on merge via `closes #<n>`), so they will not appear in the `--state open` read from step 1 — fetch their `closedAt` with a targeted `gh issue list --state all --json number,closedAt` (or `--state closed`) joined to the Done items by number. **Caveat:** `closedAt` marks issue closure, which `/ship` performs at merge via `closes #<n>`, so it tracks the move to Done closely — but a board item set to Done without its issue being closed carries no `closedAt` and is counted as Done without a date.
 
 6. **Suggested next action:**
    - Lead with the single most useful next move given the above: usually `/task` on the Ready top, but a wedged In Progress item or an empty Ready queue changes the recommendation. State it in one line.
