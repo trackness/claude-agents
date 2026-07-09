@@ -189,7 +189,7 @@ For the skills to work, each consumer repo needs:
 1. `.claude/project.json` — created by `/setup-project`
 2. A CLAUDE.md — created by `/setup-project` or manually
 
-No Claude Code plugin dependencies. `/setup-project` additionally verifies the consumer repo's own tooling (`gh`, `jq`, `task`, `lefthook`) during bootstrap.
+No Claude Code plugin dependencies. `/setup-project` hard-requires `gh` and `jq` (stops if either is missing) and additionally probes for optional consumer-repo tooling (`task`, `lefthook`) — noting whatever is present to inform test-command detection, but never blocking on their absence.
 
 ## Marketplace Configuration
 

@@ -66,8 +66,8 @@ The plugin itself needs only two system tools — no Claude Code plugin dependen
 
 The implementation methodology the skills once pulled from an external Claude Code plugin (TDD, verification, debugging, decomposition, review-response, brainstorming) is now vendored inline — see `shared/references/` and each SKILL.md — so no other plugin needs to be enabled alongside gh-pm.
 
-Consumer-repo tooling additionally verified by `/setup-project` during bootstrap:
-- `task` — go-task runner
+`/setup-project` additionally probes for optional consumer-repo tooling and notes whatever is present — never a hard requirement, never a reason to stop:
+- `task` — go-task runner (its presence hints at a `Taskfile.yml` test task during test-command detection)
 - `lefthook` — pre-commit hook manager
 
 ## Structure

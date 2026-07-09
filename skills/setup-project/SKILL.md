@@ -20,18 +20,27 @@ Idempotent — safe to re-run; every step checks before it creates, and nothing 
 
 **Step 1: Check system dependencies**
 
+`gh` and `jq` are hard requirements — the skill (and every other gh-pm skill and hook) cannot run without them:
+
 ```bash
 gh --version
 jq --version
-task --version
-lefthook version
 ```
 
-Collect all missing tools. If any are missing, print a single command:
+If either is missing, print a single command and stop:
 ```
 Missing dependencies. Install with: brew install <missing tools>
 ```
 Stop. Do not proceed.
+
+Then probe for optional consumer-repo tooling — detected and noted if present, never blocking:
+
+```bash
+task --version    2>/dev/null && echo "task present"
+lefthook version  2>/dev/null && echo "lefthook present"
+```
+
+Neither is used by the plugin itself. Their presence is only a signal about how the consumer repo builds and tests — note whichever is installed and carry that forward to the test-command detection in Step 12 (a `task` runner suggests a `Taskfile.yml` with a `test` task). Missing either one is fine; do not print a missing-dependency error for them and never stop on their account.
 
 **Step 2: Check GitHub authentication and token scopes**
 
