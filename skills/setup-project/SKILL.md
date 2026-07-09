@@ -1,14 +1,18 @@
 ---
 name: setup-project
-description: Bootstrap a new repository with GitHub Project, labels, config, and standard workflow infrastructure. Run once per repo.
+description: Use to onboard a repository into the gh-pm workflow — a brand-new repo or an existing one being adopted. Run once per repo.
 disable-model-invocation: true
 ---
 
 # Setup Project
 
-Bootstrap a repository with the full trackness workflow infrastructure: GitHub Project with standard fields, labels, local config, and starter CLAUDE.md.
+Onboard a repository into the gh-pm workflow: a GitHub Project with standard fields, the standard label set, local config in `.claude/project.json`, and a starter CLAUDE.md.
 
-Run this once per new repo. Idempotent — safe to re-run; skips anything that already exists.
+Run this once per repo. It works two ways:
+- **New repo** — creates the GitHub repo, project, fields, and labels from scratch.
+- **Existing repo (adoption)** — reconciles with what is already there: reuses an existing project and labels, leaves an existing CLAUDE.md untouched, and non-destructively migrates an existing `.claude/project.json` by adding only the keys it is missing.
+
+Idempotent — safe to re-run; every step checks before it creates, and nothing already present is overwritten.
 
 ## Workflow
 
@@ -155,9 +159,14 @@ Check in order:
 mkdir -p .claude
 ```
 
-**Step 14: Write .claude/project.json**
+**Step 14: Write or migrate .claude/project.json**
 
-Read the template from `${CLAUDE_SKILL_DIR}/templates/project.json`. Substitute all placeholders with the actual values captured during setup (owner, repo, repository node ID, project number/node ID, all field IDs, all option IDs, test command). Note that `project.number` must be written as a number, not a string. Write the result to `.claude/project.json`.
+The `ship.autoMerge` policy is the only field in the `ship` block; it drives /ship's merge fork and the `enforce-merge-gate` hook. Whenever you are about to write that field (a fresh config, or a migration that lacks a `ship` block), ask the user first: "Should /ship merge automatically once a PR passes review and CI, or stop and wait for your explicit go-ahead? (auto / wait) [auto]". Default to `auto` on an empty answer. `auto` → `ship.autoMerge = true`; `wait` → `ship.autoMerge = false`.
+
+Write the config, taking the branch that matches the repo's current state:
+
+- **No `.claude/project.json` yet:** Read the template from `${CLAUDE_SKILL_DIR}/templates/project.json`. Substitute all placeholders with the actual values captured during setup (owner, repo, repository node ID, project number/node ID, all field IDs, all option IDs, test command), and set `ship.autoMerge` to the answer above (the template ships `true` as the default). `project.number` must be written as a number, not a string. Write the result to `.claude/project.json`.
+- **`.claude/project.json` already exists (adoption / migration):** Do NOT overwrite it — its captured IDs are live and re-capturing them is unnecessary. Read it and add only the keys it is missing. A config written before v4 has no `ship` block: add `"ship": {"autoMerge": <answer>}` (asking the auto-merge question only in this case) and leave every existing key exactly as it was. If a `ship` block is already present, leave it untouched and ask nothing. This is a migration, never a replacement — merging in the missing keys is what keeps re-running safe on an already-configured repo.
 
 **Step 15: Generate starter CLAUDE.md**
 
@@ -204,7 +213,16 @@ Note: No global ~/.claude/CLAUDE.md found. Consider creating one
 for behavioral rules that apply across all your repos.
 ```
 
-**Step 19: Leave files unstaged**
+**Step 19: Offer an audit sweep (existing repos)**
+
+When this run adopted an existing repo — one that already had code, not one you just created empty — offer to run `/audit` now with ingestion enabled:
+```
+This repo already has code. Run /audit to sweep it for gaps and harvest any
+TODO/FIXME/ROADMAP intent onto the board? (y/n)
+```
+On yes, hand off to `/audit`. On no, note that `/audit` can be run at any time. Skip this offer entirely for a brand-new empty repo — there is nothing to sweep yet.
+
+**Step 20: Leave files unstaged**
 
 Do not commit. The user reviews first.
 
@@ -215,7 +233,7 @@ Every step checks before creating:
 2. Field exists → skip, capture ID
 3. Label exists → skip
 4. `.claude/` exists → skip mkdir
-5. `project.json` exists → overwrite (it's generated config)
+5. `project.json` exists → migrate in place — add only the keys it lacks (e.g. the `ship` block); never overwrite live captured IDs
 6. `CLAUDE.md` exists → skip (never overwrite user content)
 7. `.gitignore` entry exists → skip
 
