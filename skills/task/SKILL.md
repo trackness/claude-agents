@@ -1,6 +1,6 @@
 ---
 name: task
-description: Implement a GitHub Issue end-to-end — find, branch, plan, build, verify, ship. Use when starting work on a tracked issue.
+description: Implement a tracked GitHub Issue from the project board. Use when starting work on an issue.
 disable-model-invocation: true
 argument-hint: "<issue-number> [issue-number ...]"
 ---
@@ -55,17 +55,22 @@ Extract and hold in context:
      ```
    - Link the branch to the issue for early visibility using the mutation from `${CLAUDE_SKILL_DIR}/queries/create-linked-branch.graphql`. Substitute issue node ID, branch name, commit SHA, and repository node ID from project.json.
 
-5. **Plan (Medium, High, or Highest Effort only):**
-   - Invoke `superpowers-extended-cc:writing-plans` before touching code
-   - **Do NOT plan Trivial or Low effort issues** — the issue body's Implementation section is sufficient for those
+5. **Decompose (Medium, High, or Highest Effort only):**
+   - **Do NOT decompose Trivial or Low effort issues** — the issue body's Implementation section is sufficient for those.
+   - This skill owns its control flow — do not invoke external planning/brainstorming skills within it. Produce the decomposition inline, hold it in context, and work from it. NO plan file on disk — the issue body is the only artifact.
+   - Break the work into an ordered list of independently-testable tasks. For each task, capture: the file(s) it touches and its single responsibility; the failing test that opens it and the verify command with its expected output; the interfaces it consumes and produces.
+   - **Task Right-Sizing:** a task is the smallest unit that carries its own test cycle and is worth a fresh reviewer's gate; split only where a reviewer could reject one task while approving its neighbor.
+   - **Interfaces — Consumes / Produces:** each sub-task names the exact signatures it uses from and provides to neighbors, so the tasks compose without rework.
+   - **No Placeholders.** These are plan failures — a decomposition containing any of them is not done: "TBD", "add appropriate error handling", "similar to task N", or any step that describes without showing.
+   - Reconcile the decomposition against the issue's Implementation and Files sections; flag any drift to the developer before proceeding.
 
 6. **Implement using TDD:**
-   - Invoke `superpowers-extended-cc:test-driven-development`
+   - Read and follow `${CLAUDE_PLUGIN_ROOT}/shared/references/tdd.md`.
    - **Treat Implementation and Files sections as guidance** — inspect actual current code state first; flag significant drift to the developer before proceeding
 
 7. **Verify before marking complete:**
-   - Invoke `superpowers-extended-cc:verification-before-completion`
-   - Use Acceptance Criteria as the definition of done, in conjunction with the verification superpower
+   - Read and follow `${CLAUDE_PLUGIN_ROOT}/shared/references/verification.md`.
+   - Use Acceptance Criteria as the definition of done, in conjunction with the verification reference
 
 8. **Documentation check:**
    - Review what this task changed: new dependencies, deleted/renamed files, tech stack changes, workflow changes.

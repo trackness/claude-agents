@@ -58,30 +58,17 @@ If this fails (no git repo or no GitHub remote):
 4. Create the GitHub repo: `gh repo create <owner>/<dir-name> --private --source . --push`
 5. Capture `owner`, `name`, and `id` from the newly created repo
 
-**Step 4: Check plugins**
-
-Check both plugins are installed:
-1. `gh-pm@trackness`
-2. `superpowers-extended-cc@superpowers-extended-cc-marketplace`
-
-For each missing plugin, offer to install:
-```bash
-claude plugin install <plugin-name>
-```
-
-If the user declines, warn that workflows will be incomplete but continue.
-
 ### Phase 2: GitHub Project
 
-**Step 5: Check for existing project**
+**Step 4: Check for existing project**
 
 ```bash
 gh project list --owner <owner> --format json
 ```
 
-Look for an existing project linked to this repo. If found, ask the user: "Found existing project '<name>'. Use it? (y/n)". If yes, capture its number and node ID and skip to step 10. If no, create a new one.
+Look for an existing project linked to this repo. If found, ask the user: "Found existing project '<name>'. Use it? (y/n)". If yes, capture its number and node ID and skip to step 9. If no, create a new one.
 
-**Step 6: Create the GitHub Project**
+**Step 5: Create the GitHub Project**
 
 ```bash
 gh project create --owner <owner> --title "<Repo Name> Backlog" --format json
@@ -89,7 +76,7 @@ gh project create --owner <owner> --title "<Repo Name> Backlog" --format json
 
 Capture the project number and node ID.
 
-**Step 7: Configure Status field**
+**Step 6: Configure Status field**
 
 Status is a built-in field. Query the project to get the Status field ID and its default options:
 
@@ -108,25 +95,25 @@ Add any missing options and capture all option IDs. Use the mutation at `${CLAUD
 
 **Warning:** This mutation replaces all existing Status options. If the project has custom statuses beyond the standard 5, they will be lost. Fetch existing options first and verify before running.
 
-**Step 8: Create Priority field**
+**Step 7: Create Priority field**
 
 Use the mutation at `${CLAUDE_SKILL_DIR}/queries/create-priority-field.graphql`. Substitute the project node ID. Capture field ID and all option IDs.
 
-**Step 9: Create Effort field**
+**Step 8: Create Effort field**
 
 Use the mutation at `${CLAUDE_SKILL_DIR}/queries/create-effort-field.graphql`. Substitute the project node ID. Capture field ID and all option IDs.
 
-**Step 10: Create Type field**
+**Step 9: Create Type field**
 
 Use the mutation at `${CLAUDE_SKILL_DIR}/queries/create-type-field.graphql`. Substitute the project node ID. Capture field ID and all option IDs.
 
-**Step 11: Link project to repository**
+**Step 10: Link project to repository**
 
 Use the mutation at `${CLAUDE_SKILL_DIR}/queries/link-project-to-repo.graphql`. Substitute the project node ID and repository node ID.
 
 ### Phase 3: Labels
 
-**Step 12: Create standard labels**
+**Step 11: Create standard labels**
 
 Create each label on the repo. Skip any that already exist (gh returns an error for duplicates — treat as success).
 
@@ -147,7 +134,7 @@ gh label create production   --color "b60205" --description "Rate limiting, grac
 
 ### Phase 4: Local Configuration
 
-**Step 13: Detect test command**
+**Step 12: Detect test command**
 
 Check in order:
 
@@ -162,23 +149,23 @@ Check in order:
 5. **pyproject.toml** → `uv run pytest`
 6. **Nothing found** — ask the user: "Could not detect test command. What command runs your tests?"
 
-**Step 14: Create .claude/ directory**
+**Step 13: Create .claude/ directory**
 
 ```bash
 mkdir -p .claude
 ```
 
-**Step 15: Write .claude/project.json**
+**Step 14: Write .claude/project.json**
 
 Read the template from `${CLAUDE_SKILL_DIR}/templates/project.json`. Substitute all placeholders with the actual values captured during setup (owner, repo, repository node ID, project number/node ID, all field IDs, all option IDs, test command). Note that `project.number` must be written as a number, not a string. Write the result to `.claude/project.json`.
 
-**Step 16: Generate starter CLAUDE.md**
+**Step 15: Generate starter CLAUDE.md**
 
 Only create if CLAUDE.md does not already exist. If it exists, skip with a message.
 
 Read the template from `${CLAUDE_SKILL_DIR}/templates/CLAUDE.md`. Substitute `{number}`, `{owner}`, and `{testCommand}` with the actual values from the setup results. Write the result to `CLAUDE.md` in the repo root.
 
-**Step 17: Update .gitignore**
+**Step 16: Update .gitignore**
 
 Append `.claude/settings.local.json` to `.gitignore` if not already present:
 
@@ -188,7 +175,7 @@ grep -q 'settings.local.json' .gitignore 2>/dev/null || echo '.claude/settings.l
 
 ### Phase 5: Post-setup
 
-**Step 18: Print summary**
+**Step 17: Print summary**
 
 ```
 Setup complete:
@@ -205,7 +192,7 @@ Files written (unstaged — review before committing):
   .gitignore
 ```
 
-**Step 19: Check global CLAUDE.md**
+**Step 18: Check global CLAUDE.md**
 
 ```bash
 test -f ~/.claude/CLAUDE.md
@@ -217,7 +204,7 @@ Note: No global ~/.claude/CLAUDE.md found. Consider creating one
 for behavioral rules that apply across all your repos.
 ```
 
-**Step 20: Leave files unstaged**
+**Step 19: Leave files unstaged**
 
 Do not commit. The user reviews first.
 

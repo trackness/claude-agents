@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Automatically commit, PR, review, and merge the current branch. Use when work is complete and ready to land on main.
+description: Land the current feature branch on main. Use when work on a branch is complete and ready to ship.
 disable-model-invocation: true
 ---
 
@@ -27,40 +27,50 @@ Extract and hold in context:
 
 2. **Run tests:**
    - Run the test command from `project.json` (`testCommand`)
-   - If any tests fail: invoke the `superpowers-extended-cc:systematic-debugging` skill before attempting any fix, then amend or reset the commit from step 1 before re-running `/ship`
+   - If any tests fail: read and follow `${CLAUDE_PLUGIN_ROOT}/shared/references/debugging.md` before attempting any fix, then amend or reset the commit from step 1 before re-running `/ship`
    - If all tests pass: proceed
 
 3. **Documentation gate:**
    - **HARD GATE:** Check whether the branch changes the tech stack, adds/removes dependencies, changes file structure, deletes/renames files, or otherwise invalidates existing documentation. If so, update any affected docs that exist in this repo (CLAUDE.md, README, ADRs, issue templates, workflow docs) before proceeding. Stale docs do not ship.
 
-4. **Clean up stale artifacts:**
-   - Delete all files in `docs/superpowers/plans/` (both `.md` plans and `.tasks.json` companions)
-   - Delete all files in `docs/superpowers/specs/` (design specs consumed during implementation)
-   - These paths are created by the `superpowers-extended-cc` plugin's planning and spec skills. If these directories don't exist, skip this step entirely.
-   - If both directories are already empty, skip this step
-   - Commit the deletions with message `chore: remove stale plan and spec files`
-
-5. **Push and PR:**
+4. **Push and PR:**
    - Push the current branch to remote
    - Create a pull request with auto-generated title and description based on commits and changes
    - Merge strategy: `gh pr merge --squash --delete-branch` (squash keeps main history clean, `--delete-branch` cleans up)
    - `/ship` itself does not detect issue numbers. When invoked via `/task`, the `closes #<n>` line is injected into the PR body by the `/task` workflow — `/ship` passes the description through unchanged. For standalone `/ship` invocations, add `closes #<n>` manually to the PR description if needed.
 
-6. **Review:**
+5. **Review:**
    - Launch the `pr-reviewer` agent using `subagent_type: "gh-pm:pr-reviewer"` with `isolation: "worktree"` (prevents the reviewer's git operations from modifying the working tree)
    - The agent will check architecture, security, performance, error handling, testing, and readability
    - Wait for the agent's assessment: APPROVE, APPROVE WITH COMMENTS, REQUEST CHANGES, or REJECT
-   - **CRITICAL:** NEVER use `superpowers-extended-cc:code-reviewer` or any other agent — ONLY use `subagent_type: "gh-pm:pr-reviewer"`
-   - **IMPORTANT:** Do NOT substitute or supplement with the `superpowers-extended-cc:requesting-code-review` skill
+   - **CRITICAL:** The ONLY reviewer that satisfies this gate is `subagent_type: "gh-pm:pr-reviewer"`. Do NOT dispatch any other review agent, and do NOT substitute or supplement it with any general-purpose code-review skill. No other reviewer's verdict clears the merge gate.
 
-7. **Decision:**
-   - If APPROVE (zero findings, zero comments, zero suggestions): proceed to merge gate (below)
-   - If APPROVE WITH COMMENTS, REQUEST CHANGES, or REJECT: invoke `superpowers-extended-cc:receiving-code-review` before implementing anything, then implement fixes, commit, run tests (**go back to step 2**), push, then re-run the reviewer (**go back to step 6**). No exceptions — every finding must be fixed and re-reviewed.
-   - Keep iterating through the fix → test → push → review cycle until the reviewer returns a clean APPROVE with zero findings
+6. **Respond to the review:**
 
-   **MERGE GATE:** Before executing `gh pr merge`, verify: (1) the most recent pr-reviewer dispatch returned APPROVE, (2) that APPROVE contained zero comments, suggestions, or findings of any severity. If either condition is not met, do not merge — loop back to fix and re-review. This gate is non-negotiable and cannot be skipped regardless of how trivial a finding appears.
+   Findings are claims to evaluate, not orders to obey. Never agree performatively; never implement a finding you have not verified against the actual code. Work through the findings one at a time — restate, evaluate, then fix or adjudicate or clarify each before touching the next, and re-verify after each.
 
-8. **Post-merge: set Project Status to Done:**
+   For every finding:
+   - **Restate** it in your own words, then read the actual code it refers to. If the finding is ambiguous, ask for clarification BEFORE implementing anything — never guess at what the reviewer meant.
+   - **Evaluate** it against these five questions:
+     1. Is it technically correct for THIS codebase?
+     2. Would the change break existing functionality?
+     3. Is there a reason for the current implementation the reviewer may have missed?
+     4. Does the claim hold on every platform and version this code targets?
+     5. Does the reviewer have full context, or is the finding based on a partial view of the code?
+   - **YAGNI / dead-code check:** before implementing any finding that asks you to add handling, abstraction, or defensive machinery, grep for the actual callers first. If the path is unused, propose removing it instead of building what the finding requested — do not gold-plate code no one calls.
+   - **Correct finding** → fix it, one at a time, then report exactly what you changed.
+   - **Wrong, YAGNI, or wrong-for-this-stack** → push back. Post the reasoning as a PR comment and record an adjudication entry. Do NOT silently implement it, and do NOT silently drop it.
+
+   **Adjudication log.** A finding rejected with reasoning counts as addressed — the loop does not require obeying it. Each entry states exactly three things: the finding, the decision, and the evidence. No agreement language — no "good catch", no hedging, no apology — just finding + decision + evidence. Keep the running log for this branch.
+
+   **After processing all findings:** commit the fixes, run tests (**go back to step 2** on any failure), push, then re-dispatch the reviewer (**go back to step 5**). The re-review dispatch prompt MUST include the adjudication log, so the reviewer sees which findings were rejected and why.
+
+   - If the reviewer re-flags a finding already in the adjudication log, do NOT loop on it — escalate to the human with both the finding and your adjudication, and stop.
+   - Keep iterating fix/adjudicate → test → push → review until the reviewer returns an APPROVE with every finding either fixed or adjudicated.
+
+   **MERGE GATE:** Before executing `gh pr merge`, verify: (1) the most recent pr-reviewer dispatch returned APPROVE, and (2) every finding it raised is either fixed or carries an adjudication entry. If any finding is neither fixed nor adjudicated, do not merge — loop back to fix and re-review. This gate is non-negotiable and cannot be skipped regardless of how trivial a finding appears.
+
+7. **Post-merge: set Project Status to Done:**
    - If the PR body contains `closes #<n>`, extract the issue number(s) and set their Project Status to Done:
      ```bash
      ITEM_ID=$(gh project item-list <project.number> --owner <owner> --limit 200 --format json | jq -r '.items[] | select(.content.number == <n>) | .id')
