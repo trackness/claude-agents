@@ -17,6 +17,7 @@ Extract and hold in context:
 - `github.project.number`, `github.project.nodeId`
 - `github.project.fields.status.id` and all status option IDs
 - `testCommand`
+- `ship.autoMerge` (defaults to `true` when the key or the `ship` block is absent — see step 8)
 
 ## Workflow
 
@@ -36,7 +37,6 @@ Extract and hold in context:
 4. **Push and PR:**
    - Push the current branch to remote
    - Create a pull request with auto-generated title and description based on commits and changes
-   - Merge strategy: `gh pr merge --squash --delete-branch` (squash keeps main history clean, `--delete-branch` cleans up)
    - `/ship` itself does not detect issue numbers. When invoked via `/task`, the `closes #<n>` line is injected into the PR body by the `/task` workflow — `/ship` passes the description through unchanged. For standalone `/ship` invocations, add `closes #<n>` manually to the PR description if needed.
 
 5. **Review:**
@@ -44,6 +44,7 @@ Extract and hold in context:
    - The agent will check architecture, security, performance, error handling, testing, and readability
    - Wait for the agent's assessment: APPROVE, APPROVE WITH COMMENTS, REQUEST CHANGES, or REJECT
    - **CRITICAL:** The ONLY reviewer that satisfies this gate is `subagent_type: "gh-pm:pr-reviewer"`. Do NOT dispatch any other review agent, and do NOT substitute or supplement it with any general-purpose code-review skill. No other reviewer's verdict clears the merge gate.
+   - **Worktree hygiene:** Prefer the harness's native `isolation: "worktree"` (used here) over any manual `git worktree` — the harness creates the reviewer's worktree and reclaims it for you. If you ever fall back to a manual worktree: confirm its directory is ignored with `git check-ignore <dir>` before creating it; never delete the feature branch while a worktree still occupies it (remove the worktree first); never run the removal from inside that worktree; and never remove a worktree you did not create.
 
 6. **Respond to the review:**
 
@@ -68,9 +69,35 @@ Extract and hold in context:
    - If the reviewer re-flags a finding already in the adjudication log, do NOT loop on it — escalate to the human with both the finding and your adjudication, and stop.
    - Keep iterating fix/adjudicate → test → push → review until the reviewer returns an APPROVE with every finding either fixed or adjudicated.
 
-   **MERGE GATE:** Before executing `gh pr merge`, verify: (1) the most recent pr-reviewer dispatch returned APPROVE, and (2) every finding it raised is either fixed or carries an adjudication entry. If any finding is neither fixed nor adjudicated, do not merge — loop back to fix and re-review. This gate is non-negotiable and cannot be skipped regardless of how trivial a finding appears.
+   **REVIEW GATE:** The review is clean only when the most recent pr-reviewer dispatch returned APPROVE AND every finding it raised is either fixed or carries an adjudication entry. Until both hold, do not advance — loop back to fix and re-review. This gate is non-negotiable and cannot be skipped regardless of how trivial a finding appears. A clean review is a precondition for merge, not permission to merge: the CI gate (step 7) and the auto-merge decision (step 8) still stand between here and `gh pr merge`.
 
-7. **Post-merge: set Project Status to Done:**
+7. **CI gate:**
+
+   The branch and PR are pushed and CI runs against the latest commit. Before any merge decision, the PR's checks MUST be green. A clean pr-reviewer verdict does not substitute for green CI — the reviewer reads the diff, CI runs the code.
+
+   - Run `gh pr checks --watch --fail-fast` for the current PR (no argument selects the PR of the current branch). `--watch` blocks until every check reaches a terminal state, so it absorbs the pending case for you.
+   - **Pending** — never proceed on a pending state. `--watch` already waits; if you are polling by hand instead, re-poll until the checks finish (`gh pr checks` exits `8` while any check is still pending).
+   - **All checks pass** (exit `0`) — the gate is satisfied; proceed to step 8.
+   - **Any check fails** (non-zero exit other than pending) — treat each failing check exactly like a review finding. Read the failing job's log, then **go back to step 2**: read `${CLAUDE_PLUGIN_ROOT}/shared/references/debugging.md`, fix the cause, commit, and let the fix flow back through tests, push, and re-review before returning here. Never merge over a red check.
+   - **No checks configured** — if gh reports no checks on the branch (a repo with no CI), the gate is vacuously satisfied; proceed.
+
+8. **Auto-merge decision (`ship.autoMerge`):**
+
+   Read `ship.autoMerge` from `.claude/project.json`.
+
+   - **`false`** — STOP here. The work is complete and the PR is ready, but the merge is the user's call. Report: the PR URL, the review outcome (APPROVE, plus any nitpicks surfaced in the review summary), the CI result (all checks green), and the adjudication log. Then wait. Merge ONLY on the user's explicit instruction to merge — approval of the PR, the code, the approach, or the plan is NOT that instruction. When the user says to merge, continue to step 9.
+   - **`true`, key absent, or no `ship` block** — proceed to step 9 and merge. A missing key defaults to `true`, so project.json files written before this key existed keep the original auto-merge behavior (backward compatible).
+
+   The `enforce-merge-gate` hook is the mechanical backstop for the `false` case — it turns `gh pr merge` into an `ask`. That hook is a safety net, not the logic: this skill must reach the correct outcome on its own whether or not the hook fires.
+
+9. **Merge:**
+
+   **MERGE GATE — non-negotiable.** Before running `gh pr merge`, confirm all three hold: (1) the most recent pr-reviewer dispatch returned APPROVE; (2) every finding it raised is fixed or carries an adjudication entry; (3) the CI gate passed (all checks green). If any of the three is unmet, do not merge — loop back to the step that clears it. No finding is too trivial to skip this gate.
+
+   - Merge with `gh pr merge --squash --delete-branch` (squash keeps the default branch history clean; `--delete-branch` removes the merged branch).
+   - Return to the default branch after the merge completes.
+
+10. **Post-merge: set Project Status to Done:**
    - If the PR body contains `closes #<n>`, extract the issue number(s) and set their Project Status to Done:
      ```bash
      ITEM_ID=$(gh project item-list <project.number> --owner <owner> --limit 200 --format json | jq -r '.items[] | select(.content.number == <n>) | .id')
@@ -78,6 +105,14 @@ Extract and hold in context:
        --field-id <fields.status.id> --single-select-option-id <fields.status.options.done>
      ```
    - This ensures the Project board stays in sync with issue state without relying on manual post-merge steps
+
+11. **Sub-issue roll-up:**
+
+   For each issue this run set to Done, check whether it has a parent and whether that parent's other sub-issues are now all closed. The combined-issue query already returns exactly this shape — the issue's `parent` plus that parent's `subIssues` with their `state` — so run `${CLAUDE_PLUGIN_ROOT}/skills/task/queries/combined-issue-query.graphql` for the Done issue's number (substitute owner, repo, number) rather than composing raw API calls.
+
+   - **No `parent`** — nothing to roll up.
+   - **Parent still has open `subIssues`** — leave the parent alone; it has live children.
+   - **Every one of the parent's `subIssues` is closed** — post a comment on the parent (`gh issue comment <parentNumber>`) stating that all of its sub-issues are complete and it is ready for human review and closure. NEVER close the parent automatically — parent closure is always a human decision.
 
 ## Notes
 
