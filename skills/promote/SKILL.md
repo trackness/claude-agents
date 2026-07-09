@@ -25,6 +25,7 @@ Extract and hold in context:
 - `github.owner`, `github.repo`
 - `github.project.number`, `github.project.nodeId`
 - All field IDs and option IDs from `github.project.fields`
+- `labels` list — the label set this repo uses, so the promoted issue is labelled from the sanctioned vocabulary rather than an invented one
 
 ## Workflow
 
@@ -50,20 +51,35 @@ Extract and hold in context:
    - The issue title may be refined during the dialogue.
    - If the dialogue reveals the issue is Highest-effort and should be broken down, draft sub-issues (each a full template body) instead of one.
 
-   **Final Ready check (spec self-review).** Before presenting the draft, review it against the Ready invariant — this is the mechanical teeth of "Ready":
+   **Final Ready check (spec self-review).** Before presenting the draft, confirm it meets the **Ready invariant** defined in the header comment of `${CLAUDE_PLUGIN_ROOT}/shared/templates/issue-body.md` (body complete per the template; Effort, Priority, and Type set; not blocked by an open issue). The four checks below are the mechanical teeth that verify it:
    - **Placeholder scan** — no "TBD", no "add appropriate X", no unfilled template slots, no "similar to …" hand-waves.
    - **Internal consistency** — Why, Implementation, Files, Testing, and Acceptance Criteria agree with one another; no section contradicts another.
    - **Scope check** — every item in scope is needed, nothing speculative survived the YAGNI cut, and the Effort estimate matches the described work.
    - **Ambiguity check** — a fresh implementer could build this without asking a question. Any sentence open to two readings gets rewritten.
    - For a **high-stakes promotion** (large blast radius, security-sensitive, or Highest-effort), optionally dispatch an adversarial spec-review subagent via the Agent tool: give it only the drafted issue body and instruct it to hunt for gaps, contradictions, unstated assumptions, and untestable acceptance criteria — reporting findings without trusting the draft. Fold its findings back in before presenting.
 
-4. **Draft the updated issue:**
+4. **Won't Do exit (when the honest conclusion is "don't do this"):**
+
+   Promotion does not always end in a spec. If the research or the dialogue concludes the work should not happen — the idea is obsolete, already solved elsewhere, out of scope for this project, or not worth its cost — do not force a spec into existence. State the reasoning to the user and ask for explicit confirmation to close the issue as Won't Do. Only on that confirmation, run all three of:
+   ```bash
+   # Reasoning comment first, so the trail survives the close
+   gh issue comment <n> --body "Won't Do: <concrete reasoning for not doing this>"
+   # Close the issue as not planned
+   gh issue close <n> --reason "not planned"
+   # Board Status = Won't Do
+   ITEM_ID=$(gh project item-list <project.number> --owner <owner> --limit 200 --format json | jq -r '.items[] | select(.content.number == <n>) | .id')
+   gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
+     --field-id <fields.status.id> --single-select-option-id <fields.status.options.wontDo>
+   ```
+   This is a terminal exit — no branch, no further spec, no board Status other than Won't Do. Without the user's explicit confirmation, close nothing and edit nothing. If the conclusion is instead "do this", skip this step and continue to step 5.
+
+5. **Draft the updated issue:**
    - Present the full issue body, proposed labels, Type, Priority, and Effort to the developer for review
    - Show the diff from the current Backlog issue body to the proposed Ready issue body
    - Also present any proposed relationships (dependencies, sub-issue parent)
    - If breaking into sub-issues: present the parent and all proposed children
 
-5. **On user approval:**
+6. **On user approval:**
    - **Single issue path:**
      ```bash
      # Update issue body and labels

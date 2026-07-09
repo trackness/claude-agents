@@ -104,7 +104,7 @@ Orchestration and the per-item approval gate live here in the main loop. The bul
 
 6. **Draft output:**
    - For each surviving finding, recommend a status:
-     - **Ready** — well-understood, concrete findings with a clear implementation path. Draft using the issue body template at `${CLAUDE_PLUGIN_ROOT}/shared/templates/issue-body.md`. A Ready draft must satisfy the Ready invariant: body complete per the template, with Effort, Priority, and Type set, and not blocked by an open issue.
+     - **Ready** — well-understood, concrete findings with a clear implementation path. Draft using the issue body template at `${CLAUDE_PLUGIN_ROOT}/shared/templates/issue-body.md`. A Ready draft must satisfy the **Ready invariant** defined in that template's header comment (body complete per the template; Effort, Priority, and Type set; not blocked by an open issue) before it may be filed as Ready.
      - **Backlog** — speculative or broad findings that need more research before implementation. Draft with sufficient context for a future `/promote` invocation (idea, motivation, known constraints).
    - For ingestion findings, record the source location inside the drafted body.
    - Present all suggestions to the developer for review before creating anything.
