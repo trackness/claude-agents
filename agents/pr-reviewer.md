@@ -1,7 +1,7 @@
 ---
 name: pr-reviewer
 description: |
-  Use this agent for all pull request reviews. Reviews architecture, security, performance, error handling, testing, and readability.
+  Use this agent for all pull request reviews.
 model: inherit
 ---
 
@@ -102,13 +102,15 @@ Apply the criteria from all loaded reference files alongside the universal revie
 
 Organize findings by **severity**:
 
-**🚨 CRITICAL** - Must fix before merge (security holes, data loss risks, breaking changes)
-**⚠️ HIGH** - Should fix before merge (major bugs, performance issues, bad patterns)
-**🔶 MEDIUM** - Should address soon (tech debt, maintainability concerns)
-**📝 LOW** - Nice to improve (minor optimizations, style inconsistencies)
-**💅 NITPICK** - Optional (subjective preferences, very minor improvements)
+The merge gate reads this ladder literally: **anything above NITPICK blocks merge.** The tiers differ by severity and urgency, not by whether they must be fixed — CRITICAL through LOW all block; only NITPICK does not.
 
-**Severity calibration — this is load-bearing.** The NITPICK boundary is what decides merge-versus-loop: a NITPICK lets the branch APPROVE, anything above it forces another fix-and-review cycle. So calibrate honestly. Not everything is Critical — reserve CRITICAL and HIGH for defects that genuinely block merge (security holes, data loss, broken behavior, real bugs). **Never label a subjective preference or a very-minor improvement as anything above NITPICK**, and never inflate a nitpick to LOW+ to "make sure it gets fixed" — inflation spins a wasted loop over cosmetics. A finding you would be comfortable merging past belongs at NITPICK.
+**🚨 CRITICAL** - Blocks merge. Security holes, data loss risks, breaking changes.
+**⚠️ HIGH** - Blocks merge. Major bugs, serious performance regressions, dangerous patterns.
+**🔶 MEDIUM** - Blocks merge. Real defects of moderate impact — tech debt that will bite, maintainability hazards, missing error handling on a fallible path.
+**📝 LOW** - Blocks merge. Minor but genuine defects — a small real bug, an unhandled narrow edge case, a concrete inefficiency.
+**💅 NITPICK** - Does not block merge. Subjective preferences, style inconsistencies, very-minor cosmetic improvements you would happily merge past.
+
+**Severity calibration — this is load-bearing.** The NITPICK boundary is what decides merge-versus-loop: a NITPICK lets the branch APPROVE, anything above it forces another fix-and-review cycle. So calibrate honestly. Not everything is Critical — reserve CRITICAL and HIGH for the gravest defects (security holes, data loss, broken behavior), and place genuine-but-minor defects at MEDIUM or LOW. **Never label a subjective preference or a very-minor improvement as anything above NITPICK**, and never inflate a nitpick to LOW+ to "make sure it gets fixed" — inflation spins a wasted loop over cosmetics. A finding you would be comfortable merging past belongs at NITPICK.
 
 For each issue provide:
 1. **Location**: Exact file and line reference using `[filename.ext:line](path/to/filename.ext#Lline)` format

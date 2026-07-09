@@ -14,9 +14,12 @@ INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // ""')
 CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
 
-# Only inspect `gh pr merge`. Whitespace-tolerant so extra spaces
-# (`gh  pr  merge`) cannot slip past.
-echo "$COMMAND" | grep -qE '\bgh\b[[:space:]]+pr[[:space:]]+merge\b' || exit 0
+# Only inspect an actual `gh pr merge` invocation. `gh` must sit at a command
+# position -- string start or just after a shell separator (; & | ( newline) --
+# so the pattern cannot fire on the substring "gh pr merge" buried in a quoted
+# argument such as a commit message. Whitespace-tolerant (`gh  pr  merge`), and
+# `merge` must end at a word boundary so `merge-queue` and the like do not match.
+echo "$COMMAND" | grep -qE '(^|[;&|(])[[:space:]]*gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)' || exit 0
 
 # No config file, no gate.
 PROJECT_JSON="$CWD/.claude/project.json"
