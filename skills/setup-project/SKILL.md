@@ -104,7 +104,7 @@ The standard Status options are:
 4. Done
 5. Won't Do
 
-Add any missing options and capture all option IDs. Use the mutation at `${CLAUDE_SKILL_DIR}/queries/update-status-field.graphql`. Substitute the project node ID and status field ID.
+Add any missing options and capture all option IDs. Use the mutation at `${CLAUDE_SKILL_DIR}/queries/update-status-field.graphql`. Substitute the status field ID.
 
 **Warning:** This mutation replaces all existing Status options. If the project has custom statuses beyond the standard 5, they will be lost. Fetch existing options first and verify before running.
 
