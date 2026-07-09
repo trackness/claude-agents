@@ -1,4 +1,4 @@
-<!-- adapted from the MIT-licensed Superpowers plugin by Jesse Vincent (obra/superpowers, v6.1.1) -->
+<!-- adapted from the MIT-licensed Superpowers plugin by Jesse Vincent (obra/superpowers, v6.1.1); full license text in ./LICENSE-THIRD-PARTY.md -->
 
 # Verification Before Completion
 
