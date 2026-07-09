@@ -18,13 +18,15 @@ Extract and hold in context:
 - All field IDs and option IDs from `github.project.fields`
 - `labels` list
 
+In the commands below, a placeholder like `<fields.priority.options.CHOSEN>` (and its Effort/Type equivalents) means the option ID under that field whose name matches the value you picked for this issue — e.g. `<fields.priority.options.high>` when Priority is High. `CHOSEN` is never literal; resolve it to the concrete option key.
+
 ## Stack detection
 
 Before any analysis, detect the project's technology stack by checking for these marker files in the repository root, then read every matching reference so the sweep is judged against the right stack-specific criteria:
 
 | File                                                                           | Stack                        | Reference to load                                                        |
 |--------------------------------------------------------------------------------|------------------------------|--------------------------------------------------------------------------|
-| `package.json` or `tsconfig.json`                                              | TypeScript / React / Node.js | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/lang-typescript.md` |
+| `package.json` or `tsconfig.json`                                              | JavaScript / TypeScript / React / Node.js | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/lang-typescript.md` |
 | `go.mod`                                                                       | Go                           | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/lang-go.md`         |
 | `Cargo.toml`                                                                   | Rust                         | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/lang-rust.md`       |
 | `pyproject.toml`, `setup.py`, or `requirements.txt`                            | Python                       | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/lang-python.md`     |
@@ -48,6 +50,7 @@ The gap analysis is chartered against these dimensions. Each investigation sweep
 - `#architecture` — structural concerns, design patterns, significant refactoring opportunities, repo arrangement/layout
 - `#feature` — missing user-facing capabilities with clear value
 - `#production` — rate limiting, graceful shutdown, error reporting, observability
+- `#infrastructure` — server setup, health checks, configuration wiring, database setup
 
 ## Workflow
 
@@ -121,13 +124,13 @@ Orchestration and the per-item approval gate live here in the main loop. The bul
        --field-id <fields.status.id> --single-select-option-id <fields.status.options.ready>
      # Priority
      gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
-       --field-id <fields.priority.id> --single-select-option-id <priority-option-id>
+       --field-id <fields.priority.id> --single-select-option-id <fields.priority.options.CHOSEN>
      # Effort
      gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
-       --field-id <fields.effort.id> --single-select-option-id <effort-option-id>
+       --field-id <fields.effort.id> --single-select-option-id <fields.effort.options.CHOSEN>
      # Type
      gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
-       --field-id <fields.type.id> --single-select-option-id <type-option-id>
+       --field-id <fields.type.id> --single-select-option-id <fields.type.options.CHOSEN>
      ```
      Set dependencies via the mutation at `${CLAUDE_PLUGIN_ROOT}/shared/queries/add-blocked-by.graphql` if applicable.
 

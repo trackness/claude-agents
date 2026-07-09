@@ -1,5 +1,7 @@
 # Python Review Criteria
 
+The specific tool prescriptions below (`uv`, `ruff`, `loguru`, `httpx`, `ty`, Pydantic) are the standard for **new** code and greenfield projects. A mature repo already built on a different but reasonable stack (e.g. Poetry, `logging`, `requests`, flake8+black) is not defective for that choice — flag divergence from these tools at **LOW or NITPICK at most**, and never treat "uses a different established tool" as a blocking finding. The language-level criteria (type hints, async correctness, exception handling, the common pitfalls) apply regardless of tooling.
+
 ## Type Hints
 
 - All public function signatures should have type annotations (parameters and return types)

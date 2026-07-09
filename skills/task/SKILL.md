@@ -48,7 +48,9 @@ Extract and hold in context:
    - Use the `blockedBy` field from the combined GraphQL query in step 2
    - `state: CLOSED`, `stateReason: COMPLETED` → satisfied
    - `state: CLOSED`, `stateReason: NOT_PLANNED` → warn developer, continue
+   - `state: CLOSED`, `stateReason: DUPLICATE` → the blocker was closed as a duplicate; the actual work lives in its canonical issue, not here. Find the canonical issue (named in the duplicate's close event or its comments) and confirm that one is CLOSED/COMPLETED. Only then treat the dependency as satisfied — if the canonical is still open, warn and stop exactly as for an open blocker.
    - `state: OPEN` → warn and stop; implement prerequisite first
+   - **Any other combination** (an unexpected or null `stateReason`, or anything not matched above) → do NOT assume the dependency is satisfied. Warn the developer, surface the raw state/stateReason, and stop until the prerequisite is confirmed resolved.
 
 5. **Claim the issue (concurrency guard):**
    - Set the item's Status to **In Progress**. This is the **first board write, and it happens before branch creation and before any implementation work** — claiming immediately is what stops a second session from grabbing the same item. It matters most on the no-argument path, where two sessions reading the queue would otherwise both pick the same top item and double-grab it.

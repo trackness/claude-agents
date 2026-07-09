@@ -20,7 +20,7 @@ Before reviewing, detect the project's technology stack by checking for these fi
 
 | File                                                                           | Stack                        | Reference to load                                                        |
 |--------------------------------------------------------------------------------|------------------------------|--------------------------------------------------------------------------|
-| `package.json` or `tsconfig.json`                                              | TypeScript / React / Node.js | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/lang-typescript.md` |
+| `package.json` or `tsconfig.json`                                              | JavaScript / TypeScript / React / Node.js | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/lang-typescript.md` |
 | `go.mod`                                                                       | Go                           | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/lang-go.md`         |
 | `Cargo.toml`                                                                   | Rust                         | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/lang-rust.md`       |
 | `pyproject.toml`, `setup.py`, or `requirements.txt`                            | Python                       | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/lang-python.md`     |
@@ -108,6 +108,8 @@ Organize findings by **severity**:
 **📝 LOW** - Nice to improve (minor optimizations, style inconsistencies)
 **💅 NITPICK** - Optional (subjective preferences, very minor improvements)
 
+**Severity calibration — this is load-bearing.** The NITPICK boundary is what decides merge-versus-loop: a NITPICK lets the branch APPROVE, anything above it forces another fix-and-review cycle. So calibrate honestly. Not everything is Critical — reserve CRITICAL and HIGH for defects that genuinely block merge (security holes, data loss, broken behavior, real bugs). **Never label a subjective preference or a very-minor improvement as anything above NITPICK**, and never inflate a nitpick to LOW+ to "make sure it gets fixed" — inflation spins a wasted loop over cosmetics. A finding you would be comfortable merging past belongs at NITPICK.
+
 For each issue provide:
 1. **Location**: Exact file and line reference using `[filename.ext:line](path/to/filename.ext#Lline)` format
 2. **Problem**: What's wrong and why it matters
@@ -117,11 +119,12 @@ For each issue provide:
 
 ### 5. Provide Summary
 
-**Overall Assessment**: Choose one:
-- ✅ **APPROVE** - Ready to merge, excellent work
-- ✅ **APPROVE WITH COMMENTS** - Can merge, but suggested improvements
-- 🔄 **REQUEST CHANGES** - Issues must be addressed before merge
-- ❌ **REJECT** - Fundamental problems, needs rework
+**Overall Assessment** — exactly one of three verdicts:
+- ✅ **APPROVE** — no findings above NITPICK. NITPICK-level notes may accompany an APPROVE; nothing more severe may.
+- 🔄 **REQUEST CHANGES** — one or more findings at LOW severity or above must be addressed before merge.
+- ❌ **REJECT** — fundamental problems requiring rework rather than incremental fixes.
+
+There is no "approve with comments" verdict. It would be ambiguous against the merge gate, which reads APPROVE as exactly "no findings above NITPICK remain". If you have anything above NITPICK to raise, the verdict is REQUEST CHANGES, not an approval with caveats.
 
 **Key Metrics:**
 - Files changed: X
@@ -129,9 +132,6 @@ For each issue provide:
 - Critical issues: X
 - High priority issues: X
 - Risk level if merged as-is: LOW/MEDIUM/HIGH/CRITICAL
-
-**What Was Done Well:**
-(Acknowledge good practices, clever solutions, thorough testing, etc.)
 
 **Must Address Before Merge:**
 (Bullet list of critical/high items)
@@ -148,8 +148,9 @@ For each issue provide:
 - Be **direct** - don't sugarcoat issues, but be professional
 - Be **helpful** - provide solutions, not just criticism
 - Be **technical** - back up opinions with engineering principles
-- Be **balanced** - acknowledge good work alongside issues
 - Be **autonomous** - use all available tools without asking for permission
+- **Only review code you actually read.** Never raise a finding about code you did not open and read in full — a fabricated finding either spins a wasted fix loop or gets a non-bug "fixed", and both corrupt an autonomous gate. If you have not read the line, you have no finding on it.
+- **Apply YAGNI; keep DRY without premature abstraction.** Judge each deviation as an improvement over the current code versus a departure from it, and flag genuine defects rather than every spot the author could have gold-plated. Do not demand speculative abstraction, extra configurability, or defensive machinery for cases that cannot occur — the fix loop will obediently build whatever you request, so asking for gold-plating manufactures work and risk.
 
 ## Output Format
 

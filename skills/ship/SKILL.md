@@ -42,7 +42,8 @@ Extract and hold in context:
 5. **Review:**
    - Launch the `pr-reviewer` agent using `subagent_type: "gh-pm:pr-reviewer"` with `isolation: "worktree"` (prevents the reviewer's git operations from modifying the working tree)
    - The agent will check architecture, security, performance, error handling, testing, and readability
-   - Wait for the agent's assessment: APPROVE, APPROVE WITH COMMENTS, REQUEST CHANGES, or REJECT
+   - Wait for the agent's assessment — one of three verdicts: **APPROVE** (no findings above NITPICK), **REQUEST CHANGES**, or **REJECT**. There is no "approve with comments": a verdict that carried anything above NITPICK is REQUEST CHANGES, not an approval.
+   - **APPROVE = merge-eligible.** APPROVE means no findings above NITPICK remain; it satisfies this gate. Any NITPICK-level notes the reviewer attached do not block the merge — surface them in the PR summary (see steps 8 and 9) so they are recorded, not silently dropped.
    - **CRITICAL:** The ONLY reviewer that satisfies this gate is `subagent_type: "gh-pm:pr-reviewer"`. Do NOT dispatch any other review agent, and do NOT substitute or supplement it with any general-purpose code-review skill. No other reviewer's verdict clears the merge gate.
    - **Worktree hygiene:** Prefer the harness's native `isolation: "worktree"` (used here) over any manual `git worktree` — the harness creates the reviewer's worktree and reclaims it for you. If you ever fall back to a manual worktree: confirm its directory is ignored with `git check-ignore <dir>` before creating it; never delete the feature branch while a worktree still occupies it (remove the worktree first); never run the removal from inside that worktree; and never remove a worktree you did not create.
 
@@ -94,6 +95,7 @@ Extract and hold in context:
 
    **MERGE GATE — non-negotiable.** Before running `gh pr merge`, confirm all three hold: (1) the most recent pr-reviewer dispatch returned APPROVE; (2) every finding it raised is fixed or carries an adjudication entry; (3) the CI gate passed (all checks green). If any of the three is unmet, do not merge — loop back to the step that clears it. No finding is too trivial to skip this gate.
 
+   - If the APPROVE carried any NITPICK-level notes, record them in the PR summary/body before merging (`gh pr edit --body`) so they survive in the merged history rather than vanishing with the review.
    - Merge with `gh pr merge --squash --delete-branch` (squash keeps the default branch history clean; `--delete-branch` removes the merged branch).
    - Return to the default branch after the merge completes.
 

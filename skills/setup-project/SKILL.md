@@ -172,7 +172,7 @@ Write the config, taking the branch that matches the repo's current state:
 
 Only create if CLAUDE.md does not already exist. If it exists, skip with a message.
 
-Read the template from `${CLAUDE_SKILL_DIR}/templates/CLAUDE.md`. Substitute `{number}`, `{owner}`, and `{testCommand}` with the actual values from the setup results. Write the result to `CLAUDE.md` in the repo root.
+Read the template from `${CLAUDE_SKILL_DIR}/templates/CLAUDE.md`. Substitute `<projectNumber>`, `<owner>`, and `<testCommand>` with the actual values from the setup results. Write the result to `CLAUDE.md` in the repo root.
 
 **Step 16: Update .gitignore**
 

@@ -27,6 +27,8 @@ Extract and hold in context:
 - All field IDs and option IDs from `github.project.fields`
 - `labels` list — the label set this repo uses, so the promoted issue is labelled from the sanctioned vocabulary rather than an invented one
 
+In the commands below, a placeholder like `<fields.priority.options.CHOSEN>` (and its Effort/Type equivalents) means the option ID under that field whose name matches the value you picked for this issue — e.g. `<fields.priority.options.high>` when Priority is High. `CHOSEN` is never literal; resolve it to the concrete option key.
+
 ## Workflow
 
 1. **Find the Backlog issue:**
@@ -91,13 +93,13 @@ Extract and hold in context:
        --field-id <fields.status.id> --single-select-option-id <fields.status.options.ready>
      # Priority
      gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
-       --field-id <fields.priority.id> --single-select-option-id <priority-option-id>
+       --field-id <fields.priority.id> --single-select-option-id <fields.priority.options.CHOSEN>
      # Effort
      gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
-       --field-id <fields.effort.id> --single-select-option-id <effort-option-id>
+       --field-id <fields.effort.id> --single-select-option-id <fields.effort.options.CHOSEN>
      # Type
      gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
-       --field-id <fields.type.id> --single-select-option-id <type-option-id>
+       --field-id <fields.type.id> --single-select-option-id <fields.type.options.CHOSEN>
      ```
      Set dependencies via the mutation at `${CLAUDE_PLUGIN_ROOT}/shared/queries/add-blocked-by.graphql` if applicable.
 
