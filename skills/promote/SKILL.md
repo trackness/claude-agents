@@ -41,7 +41,7 @@ Extract and hold in context:
 
 3. **Brainstorm:**
    - Invoke the `superpowers-extended-cc:brainstorming` skill, explicitly summarising the findings from step 2 (affected files, related issues, effort estimate, existing patterns) as input context
-   - Use the brainstorming output to draft the full issue body using the template at `${CLAUDE_SKILL_DIR}/templates/issue-body.md`
+   - Use the brainstorming output to draft the full issue body using the template at `${CLAUDE_PLUGIN_ROOT}/shared/templates/issue-body.md`
    - The issue title may be refined during brainstorming
    - If brainstorming reveals the issue is Highest-effort and should be broken down, draft sub-issues instead
 
@@ -71,10 +71,10 @@ Extract and hold in context:
      gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
        --field-id <fields.type.id> --single-select-option-id <type-option-id>
      ```
-     Set dependencies via the mutation at `${CLAUDE_SKILL_DIR}/queries/add-blocked-by.graphql` if applicable.
+     Set dependencies via the mutation at `${CLAUDE_PLUGIN_ROOT}/shared/queries/add-blocked-by.graphql` if applicable.
 
    - **Breakdown path (Highest-effort):**
-     The original Backlog issue becomes the parent — update its body to describe the overall effort. Set Status = Ready, Priority, Effort, Type on the parent (it carries all project fields). Create child issues with full template bodies. Add children via the mutation at `${CLAUDE_SKILL_DIR}/queries/add-sub-issue.graphql`. Do NOT add children to the Project board. Set dependencies on children via `${CLAUDE_SKILL_DIR}/queries/add-blocked-by.graphql` as needed.
+     The original Backlog issue becomes the parent — update its body to describe the overall effort. Set Status = Ready, Priority, Effort, Type on the parent (it carries all project fields). Create child issues with full template bodies. Add children via the mutation at `${CLAUDE_SKILL_DIR}/queries/add-sub-issue.graphql`. Do NOT add children to the Project board. Set dependencies on children via `${CLAUDE_PLUGIN_ROOT}/shared/queries/add-blocked-by.graphql` as needed.
 
 ## Error Handling
 

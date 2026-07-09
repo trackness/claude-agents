@@ -47,7 +47,7 @@ Extract and hold in context:
 
 4. **Draft output:**
    - For each finding, recommend a status:
-     - **Ready** — well-understood, concrete findings with clear implementation path. Draft using the issue body template at `${CLAUDE_SKILL_DIR}/templates/issue-body.md`.
+     - **Ready** — well-understood, concrete findings with clear implementation path. Draft using the issue body template at `${CLAUDE_PLUGIN_ROOT}/shared/templates/issue-body.md`.
      - **Backlog** — speculative or broad findings that need more research before implementation. Draft with sufficient context for a future `/promote` invocation (idea, motivation, known constraints).
    - Present all suggestions to the developer for review before creating anything
 
@@ -71,7 +71,7 @@ Extract and hold in context:
      gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
        --field-id <fields.type.id> --single-select-option-id <type-option-id>
      ```
-     Set dependencies via the mutation at `${CLAUDE_SKILL_DIR}/queries/add-blocked-by.graphql` if applicable.
+     Set dependencies via the mutation at `${CLAUDE_PLUGIN_ROOT}/shared/queries/add-blocked-by.graphql` if applicable.
 
    - **Backlog findings:**
      ```bash
@@ -81,7 +81,7 @@ Extract and hold in context:
      gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
        --field-id <fields.status.id> --single-select-option-id <fields.status.options.backlog>
      ```
-     No Priority, Effort, or Type — these are determined during `/promote`. Set dependencies via `${CLAUDE_SKILL_DIR}/queries/add-blocked-by.graphql` if known.
+     No Priority, Effort, or Type — these are determined during `/promote`. Set dependencies via `${CLAUDE_PLUGIN_ROOT}/shared/queries/add-blocked-by.graphql` if known.
 
 ## Notes
 

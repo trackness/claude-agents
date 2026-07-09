@@ -20,12 +20,12 @@ Before reviewing, detect the project's technology stack by checking for these fi
 
 | File                                                                           | Stack                        | Reference to load                                                        |
 |--------------------------------------------------------------------------------|------------------------------|--------------------------------------------------------------------------|
-| `package.json` or `tsconfig.json`                                              | TypeScript / React / Node.js | `${CLAUDE_PLUGIN_ROOT}/agents/pr-reviewer-references/lang-typescript.md` |
-| `go.mod`                                                                       | Go                           | `${CLAUDE_PLUGIN_ROOT}/agents/pr-reviewer-references/lang-go.md`         |
-| `Cargo.toml`                                                                   | Rust                         | `${CLAUDE_PLUGIN_ROOT}/agents/pr-reviewer-references/lang-rust.md`       |
-| `pyproject.toml`, `setup.py`, or `requirements.txt`                            | Python                       | `${CLAUDE_PLUGIN_ROOT}/agents/pr-reviewer-references/lang-python.md`     |
-| `Dockerfile`, `compose.yaml`, or `docker-compose.*`                            | Docker                       | `${CLAUDE_PLUGIN_ROOT}/agents/pr-reviewer-references/infra-docker.md`    |
-| `migrations/`, `db/`, `prisma/`, `alembic.ini`, `diesel.toml`, or `knexfile.*` | Database                     | `${CLAUDE_PLUGIN_ROOT}/agents/pr-reviewer-references/infra-database.md`  |
+| `package.json` or `tsconfig.json`                                              | TypeScript / React / Node.js | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/lang-typescript.md` |
+| `go.mod`                                                                       | Go                           | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/lang-go.md`         |
+| `Cargo.toml`                                                                   | Rust                         | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/lang-rust.md`       |
+| `pyproject.toml`, `setup.py`, or `requirements.txt`                            | Python                       | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/lang-python.md`     |
+| `Dockerfile`, `compose.yaml`, or `docker-compose.*`                            | Docker                       | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/infra-docker.md`    |
+| `migrations/`, `db/`, `prisma/`, `alembic.ini`, `diesel.toml`, or `knexfile.*` | Database                     | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/infra-database.md`  |
 
 Use `Glob` to check which of these files exist. Then use `Read` to load **all** matching reference files — a project may use multiple stacks. Apply the criteria from loaded references during the Deep Analysis phase.
 
