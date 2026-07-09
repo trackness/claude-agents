@@ -24,8 +24,8 @@ This installs the plugin from the `trackness` marketplace (`trackness/claude-cod
 |-------|---------|
 | `/setup-project` | Bootstrap or adopt a repo: GitHub Project, labels, `.claude/project.json`, and starter CLAUDE.md |
 | `/capture` | Point intake: turn a raw idea (or an existing issue) into a Backlog item after a dedupe check |
-| `/promote <n>` | Promote a Backlog issue to Ready with a full spec via research and inline brainstorming; can exit to Won't Do |
-| `/task [n ...]` | Implement a Ready issue end-to-end: claim, branch, decompose, build, verify, ship. No argument pulls the top of the Ready queue; an already-In-Progress issue with a linked branch is resumed, not re-branched |
+| `/promote <n>` | Promote a Backlog issue to Ready with a full spec: dispatched read-only research, inline brainstorming, and a mandatory adversarial spec-review before the draft; can exit to Won't Do |
+| `/task [n ...]` | Implement a Ready issue end-to-end: claim, branch, decompose, then dispatch implementer subagents while the orchestrator verifies and owns all commits and board writes; verify, ship. No argument pulls the top of the Ready queue; an already-In-Progress issue with a linked branch is resumed, not re-branched |
 | `/ship` | Commit, PR, `gh-pm:pr-reviewer` review, CI gate, then merge or hand off per `ship.autoMerge` |
 | `/status` | Read-only board observability: the ordered Ready queue, wedged In-Progress work, stray issues, counts, and the next action |
 | `/audit` | 12-dimension codebase gap analysis plus TODO/ROADMAP intent ingestion; drafts GitHub Issues for per-item approval |
@@ -192,10 +192,10 @@ flowchart TD
     F --> G{Effort?}
     G -->|Medium/High/Highest| H[Decompose inline]
     G -->|Trivial/Low| I[Skip decomposition]
-    H --> J[Implement via TDD]
+    H --> J["Dispatch implementer subagents (sequential, TDD); orchestrator re-verifies + commits each"]
     I --> J
     RB --> J
-    J --> K[Verify against acceptance criteria]
+    J --> K[Orchestrator verifies against acceptance criteria]
     K --> L[Documentation check]
     L --> M["/ship"]
 ```
@@ -215,7 +215,7 @@ flowchart TD
     F --> H[Push + create PR]
     H --> I[gh-pm:pr-reviewer reviews]
     I --> J{Verdict?}
-    J -->|REQUEST CHANGES / REJECT| N[Fix or adjudicate findings]
+    J -->|REQUEST CHANGES / REJECT| N["Adjudicate; dispatch implementer for accepted fixes (orchestrator verifies + commits)"]
     N --> D
     J -->|APPROVE| CI[CI gate: gh pr checks]
     CI -->|Red| E
@@ -232,12 +232,13 @@ flowchart TD
 ```mermaid
 flowchart TD
     A["/promote n"] --> B[Fetch Backlog issue]
-    B --> C[Research: read code, find related issues]
+    B --> C[Research: dispatched read-only readers return a structured map]
     C --> D[Structured brainstorming dialogue: inline, one question at a time]
     D --> WD{Conclusion?}
     WD -->|No-go| X[Confirm, then close as Won't Do]
     WD -->|Do it| E[Draft full spec + Ready self-review]
-    E --> F[Present to user for review]
+    E --> SR[Mandatory adversarial spec-review subagent: cold read of the body]
+    SR --> F[Present to user for review]
     F --> G{Approved?}
     G -->|No| E
     G -->|Yes| H{Highest effort?}
