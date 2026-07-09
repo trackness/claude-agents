@@ -155,16 +155,16 @@ stateDiagram-v2
 ```mermaid
 flowchart TD
     A["/capture (idea text or issue number)"] --> B{Input}
-    B -- Idea text --> C[New-idea path]
-    B -- Issue number --> D[Adopt path]
+    B -->|Idea text| C[New-idea path]
+    B -->|Issue number| D[Adopt path]
     C --> E[Dedupe check vs open issues + board]
     D --> E
-    E -- Likely duplicate --> F[Surface: adopt / extend / create anyway]
-    E -- Unique --> G[Draft: title + body + labels + Type]
+    E -->|Likely duplicate| F[Surface: adopt / extend / create anyway]
+    E -->|Unique| G[Draft: title + body + labels + Type]
     F --> G
     G --> H{User approves?}
-    H -- No --> Z[Stop: no writes]
-    H -- Yes --> I[Create/adopt issue + add to board + Status Backlog]
+    H -->|No| Z[Stop: no writes]
+    H -->|Yes| I[Create/adopt issue + add to board + Status Backlog]
 ```
 
 ### /task Flow
@@ -173,18 +173,18 @@ flowchart TD
 flowchart TD
     A["/task [n ...]"] --> B[Read project.json]
     B --> S{Argument given?}
-    S -- No --> Q[Pull top of Ready queue per /status ordering]
-    S -- Yes --> C[Locate issue on board]
+    S -->|No| Q[Pull top of Ready queue per /status ordering]
+    S -->|Yes| C[Locate issue on board]
     Q --> C
     C --> R{In Progress with linked branch?}
-    R -- Yes --> RB[Resume: checkout branch, assess, continue]
-    R -- No --> D{Dependencies satisfied?}
-    D -- No --> E[Stop: implement prerequisite]
-    D -- Yes --> CL[Claim: set In Progress before any work]
+    R -->|Yes| RB[Resume: checkout branch, assess, continue]
+    R -->|No| D{Dependencies satisfied?}
+    D -->|No| E[Stop: implement prerequisite]
+    D -->|Yes| CL[Claim: set In Progress before any work]
     CL --> F[Create + link feature branch]
     F --> G{Effort?}
-    G -- Medium/High/Highest --> H[Decompose inline]
-    G -- Trivial/Low --> I[Skip decomposition]
+    G -->|Medium/High/Highest| H[Decompose inline]
+    G -->|Trivial/Low| I[Skip decomposition]
     H --> J[Implement via TDD]
     I --> J
     RB --> J
@@ -200,22 +200,22 @@ APPROVE means no findings above NITPICK remain; any NITPICK notes are surfaced i
 ```mermaid
 flowchart TD
     A["/ship"] --> B{On default branch?}
-    B -- Yes --> C[STOP: create branch first]
-    B -- No --> D[Run tests]
-    D -- Fail --> E[Debug + fix]
+    B -->|Yes| C[STOP: create branch first]
+    B -->|No| D[Run tests]
+    D -->|Fail| E[Debug + fix]
     E --> D
-    D -- Pass --> F[Documentation gate]
+    D -->|Pass| F[Documentation gate]
     F --> H[Push + create PR]
     H --> I[gh-pm:pr-reviewer reviews]
     I --> J{Verdict?}
-    J -- REQUEST CHANGES / REJECT --> N[Fix or adjudicate findings]
+    J -->|REQUEST CHANGES / REJECT| N[Fix or adjudicate findings]
     N --> D
-    J -- APPROVE --> CI[CI gate: gh pr checks]
-    CI -- Red --> E
-    CI -- Green --> AM{ship.autoMerge?}
-    AM -- false --> W[Stop: report PR ready, await go-ahead]
-    W -- user says merge --> L
-    AM -- true or absent --> L["Merge --squash --delete-branch"]
+    J -->|APPROVE| CI[CI gate: gh pr checks]
+    CI -->|Red| E
+    CI -->|Green| AM{ship.autoMerge?}
+    AM -->|false| W[Stop: report PR ready, await go-ahead]
+    W -->|user says merge| L
+    AM -->|true or absent| L["Merge --squash --delete-branch"]
     L --> O[Set project status: Done]
     O --> RU[Sub-issue roll-up: flag parent for review]
 ```
@@ -228,14 +228,14 @@ flowchart TD
     B --> C[Research: read code, find related issues]
     C --> D[Structured brainstorming dialogue: inline, one question at a time]
     D --> WD{Conclusion?}
-    WD -- No-go --> X[Confirm, then close as Won't Do]
-    WD -- Do it --> E[Draft full spec + Ready self-review]
+    WD -->|No-go| X[Confirm, then close as Won't Do]
+    WD -->|Do it| E[Draft full spec + Ready self-review]
     E --> F[Present to user for review]
     F --> G{Approved?}
-    G -- No --> E
-    G -- Yes --> H{Highest effort?}
-    H -- No --> I[Update issue body + set Ready]
-    H -- Yes --> J[Break into sub-issues]
+    G -->|No| E
+    G -->|Yes| H{Highest effort?}
+    H -->|No| I[Update issue body + set Ready]
+    H -->|Yes| J[Break into sub-issues]
     J --> I
 ```
 
@@ -256,11 +256,11 @@ flowchart TD
     E --> F[Draft findings: Ready or Backlog]
     F --> G[Present to user]
     G --> H{Per-item approval}
-    H -- Approved --> I[Create issue + add to project]
-    H -- Rejected --> J[Skip]
+    H -->|Approved| I[Create issue + add to project]
+    H -->|Rejected| J[Skip]
     I --> H
     J --> H
-    H -- All items processed --> K["Draft cleanup issue (Ready): migrated TODO / FIXME / ROADMAP sources, removed later via /task"]
+    H -->|All items processed| K["Draft cleanup issue (Ready): migrated TODO / FIXME / ROADMAP sources, removed later via /task"]
 ```
 
 ### /status Flow
@@ -286,12 +286,12 @@ flowchart TD
 flowchart LR
     A[Claude calls tool] --> B{PreToolUse hooks}
     B --> C{Match?}
-    C -- No --> D[Tool executes]
-    C -- Yes --> E[Hook script runs]
+    C -->|No| D[Tool executes]
+    C -->|Yes| E[Hook script runs]
     E --> F{Decision}
-    F -- allow --> D
-    F -- ask --> J[User confirmation prompt]
-    F -- deny --> G[Tool blocked]
+    F -->|allow| D
+    F -->|ask| J[User confirmation prompt]
+    F -->|deny| G[Tool blocked]
     G --> H[Reason sent to Claude]
     H --> I[Claude adjusts approach]
 ```
