@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Automatically commit, PR, review, and merge the current branch. Use when work is complete and ready to land on main.
+description: Use when work on a feature branch is complete and ready to land on main.
 disable-model-invocation: true
 ---
 
@@ -17,6 +17,7 @@ Extract and hold in context:
 - `github.project.number`, `github.project.nodeId`
 - `github.project.fields.status.id` and all status option IDs
 - `testCommand`
+- `ship.autoMerge` (defaults to `true` when the key or the `ship` block is absent — see step 8)
 
 ## Workflow
 
@@ -27,40 +28,83 @@ Extract and hold in context:
 
 2. **Run tests:**
    - Run the test command from `project.json` (`testCommand`)
-   - If any tests fail: invoke the `superpowers-extended-cc:systematic-debugging` skill before attempting any fix, then amend or reset the commit from step 1 before re-running `/ship`
+   - If any tests fail: read and follow `${CLAUDE_PLUGIN_ROOT}/shared/references/debugging.md` before attempting any fix, then amend or reset the commit from step 1 before re-running `/ship`
    - If all tests pass: proceed
 
 3. **Documentation gate:**
    - **HARD GATE:** Check whether the branch changes the tech stack, adds/removes dependencies, changes file structure, deletes/renames files, or otherwise invalidates existing documentation. If so, update any affected docs that exist in this repo (CLAUDE.md, README, ADRs, issue templates, workflow docs) before proceeding. Stale docs do not ship.
 
-4. **Clean up stale artifacts:**
-   - Delete all files in `docs/superpowers/plans/` (both `.md` plans and `.tasks.json` companions)
-   - Delete all files in `docs/superpowers/specs/` (design specs consumed during implementation)
-   - These paths are created by the `superpowers-extended-cc` plugin's planning and spec skills. If these directories don't exist, skip this step entirely.
-   - If both directories are already empty, skip this step
-   - Commit the deletions with message `chore: remove stale plan and spec files`
-
-5. **Push and PR:**
+4. **Push and PR:**
    - Push the current branch to remote
    - Create a pull request with auto-generated title and description based on commits and changes
-   - Merge strategy: `gh pr merge --squash --delete-branch` (squash keeps main history clean, `--delete-branch` cleans up)
    - `/ship` itself does not detect issue numbers. When invoked via `/task`, the `closes #<n>` line is injected into the PR body by the `/task` workflow — `/ship` passes the description through unchanged. For standalone `/ship` invocations, add `closes #<n>` manually to the PR description if needed.
 
-6. **Review:**
+5. **Review:**
    - Launch the `pr-reviewer` agent using `subagent_type: "gh-pm:pr-reviewer"` with `isolation: "worktree"` (prevents the reviewer's git operations from modifying the working tree)
    - The agent will check architecture, security, performance, error handling, testing, and readability
-   - Wait for the agent's assessment: APPROVE, APPROVE WITH COMMENTS, REQUEST CHANGES, or REJECT
-   - **CRITICAL:** NEVER use `superpowers-extended-cc:code-reviewer` or any other agent — ONLY use `subagent_type: "gh-pm:pr-reviewer"`
-   - **IMPORTANT:** Do NOT substitute or supplement with the `superpowers-extended-cc:requesting-code-review` skill
+   - Wait for the agent's assessment — one of three verdicts: **APPROVE** (no findings above NITPICK), **REQUEST CHANGES**, or **REJECT**. There is no "approve with comments": a verdict that carried anything above NITPICK is REQUEST CHANGES, not an approval.
+   - **APPROVE = merge-eligible.** APPROVE means no findings above NITPICK remain; it satisfies this gate. Any NITPICK-level notes the reviewer attached do not block the merge — surface them in the PR summary (see steps 8 and 9) so they are recorded, not silently dropped.
+   - **CRITICAL:** The ONLY reviewer that satisfies this gate is `subagent_type: "gh-pm:pr-reviewer"`. Do NOT dispatch any other review agent, and do NOT substitute or supplement it with any general-purpose code-review skill. No other reviewer's verdict clears the merge gate.
+   - **Worktree hygiene:** Prefer the harness's native `isolation: "worktree"` (used here) over any manual `git worktree` — the harness creates the reviewer's worktree and reclaims it for you. If you ever fall back to a manual worktree: confirm its directory is ignored with `git check-ignore <dir>` before creating it; never delete the feature branch while a worktree still occupies it (remove the worktree first); never run the removal from inside that worktree; and never remove a worktree you did not create.
 
-7. **Decision:**
-   - If APPROVE (zero findings, zero comments, zero suggestions): proceed to merge gate (below)
-   - If APPROVE WITH COMMENTS, REQUEST CHANGES, or REJECT: invoke `superpowers-extended-cc:receiving-code-review` before implementing anything, then implement fixes, commit, run tests (**go back to step 2**), push, then re-run the reviewer (**go back to step 6**). No exceptions — every finding must be fixed and re-reviewed.
-   - Keep iterating through the fix → test → push → review cycle until the reviewer returns a clean APPROVE with zero findings
+6. **Respond to the review:**
 
-   **MERGE GATE:** Before executing `gh pr merge`, verify: (1) the most recent pr-reviewer dispatch returned APPROVE, (2) that APPROVE contained zero comments, suggestions, or findings of any severity. If either condition is not met, do not merge — loop back to fix and re-review. This gate is non-negotiable and cannot be skipped regardless of how trivial a finding appears.
+   Findings are claims to evaluate, not orders to obey. Never agree performatively; never implement a finding you have not verified against the actual code. Work through the findings one at a time — restate, evaluate, then fix or adjudicate or clarify each before touching the next, and re-verify after each.
 
-8. **Post-merge: set Project Status to Done:**
+   For every finding:
+   - **Restate** it in your own words, then read the actual code it refers to. If the finding is ambiguous, ask for clarification BEFORE implementing anything — never guess at what the reviewer meant.
+   - **Evaluate** it against these five questions:
+     1. Is it technically correct for THIS codebase?
+     2. Would the change break existing functionality?
+     3. Is there a reason for the current implementation the reviewer may have missed?
+     4. Does the claim hold on every platform and version this code targets?
+     5. Does the reviewer have full context, or is the finding based on a partial view of the code?
+   - **YAGNI / dead-code check:** before implementing any finding that asks you to add handling, abstraction, or defensive machinery, grep for the actual callers first. If the path is unused, propose removing it instead of building what the finding requested — do not gold-plate code no one calls.
+   - **Correct finding** → dispatch an implementer to fix it (see below), one finding at a time; when it returns and the orchestrator has re-verified, report exactly what changed.
+   - **Wrong, YAGNI, or wrong-for-this-stack** → push back. Post the reasoning as a PR comment and record an adjudication entry. Do NOT silently implement it, and do NOT silently drop it.
+
+   **Code changes are dispatched, not typed in the main loop.** When a finding you accept — or a failing check from the CI gate (step 7) — requires editing code, the orchestrator dispatches an implementer subagent to make that change, the same self-contained pattern `/task` uses: the instruction carries the exact change, the file(s) it touches, the failing-or-fixing test, the verify command with its expected output, and the boundary that it touches only that fix — no scope creep, no board access, no commits, no push. **Sequential dispatch only** — one implementer at a time against the shared working tree; parallel implementers are forbidden for the same reason as in `/task` (they corrupt each other's diffs and tests). When it returns, the orchestrator re-runs the tests itself for fresh evidence (per `${CLAUDE_PLUGIN_ROOT}/shared/references/verification.md`), reviews the diff against the instruction, and only then commits. The orchestrator keeps every judgment and every state write for itself: the adjudication decisions, the PR comments, the re-review dispatches, the CI gate reads, the merge, and the board writes. Exactly one mind touches state.
+
+   **Adjudication log.** A finding rejected with reasoning counts as addressed — the loop does not require obeying it. Each entry states exactly three things: the finding, the decision, and the evidence. No agreement language — no "good catch", no hedging, no apology — just finding + decision + evidence.
+
+   The log's durable home is the PR itself: every rejection posts its reasoning as a PR comment (above), so the adjudications survive a crash, a new session, or a resumed `/ship` even though nothing is written to disk. Because of that, do not trust an empty in-memory log on a run you did not start from scratch. At the start of any re-review dispatch — whether this is a fresh `/ship` or a resumed one — **reconstruct the adjudication log before dispatching:** read the PR's comment thread (`gh pr view --json comments` or `gh api`), collect every adjudication entry posted there (finding + decision + evidence), and merge them with any entries held in the current session. Reconstructing first is what keeps the re-flag→escalate rule alive across a resume — without it, a resumed run forgets what was already adjudicated and loops on a finding it should escalate.
+
+   **After processing all findings** (each accepted fix already dispatched, verified, and committed by the orchestrator per the dispatch paragraph above): run tests (**go back to step 2** on any failure), push, then re-dispatch the reviewer (**go back to step 5**). Reconstruct the adjudication log from the PR comments as described above, then re-dispatch — the re-review prompt MUST include the full reconstructed log, so the reviewer sees which findings were rejected and why.
+
+   - If the reviewer re-flags a finding already in the adjudication log, do NOT loop on it — escalate to the human with both the finding and your adjudication, and stop.
+   - Keep iterating fix/adjudicate → test → push → review until the reviewer returns an APPROVE with every finding either fixed or adjudicated.
+
+   **REVIEW GATE:** The review is clean only when the most recent pr-reviewer dispatch returned APPROVE AND every finding it raised is either fixed or carries an adjudication entry. Until both hold, do not advance — loop back to fix and re-review. This gate is non-negotiable and cannot be skipped regardless of how trivial a finding appears. A clean review is a precondition for merge, not permission to merge: the CI gate (step 7) and the auto-merge decision (step 8) still stand between here and `gh pr merge`.
+
+7. **CI gate:**
+
+   The branch and PR are pushed and CI runs against the latest commit. Before any merge decision, the PR's checks MUST be green. A clean pr-reviewer verdict does not substitute for green CI — the reviewer reads the diff, CI runs the code.
+
+   Run `gh pr checks --watch --fail-fast` for the current PR (no argument selects the PR of the current branch), **capturing both its exit code and its output**. `--watch` blocks until every check reaches a terminal state, so it absorbs the pending case for you. The exit code alone cannot tell the three outcomes apart — `gh pr checks` exits `1` both for a failing check **and** for a PR that has no checks at all — so you must read the output, not just the code:
+
+   - **No checks configured** — a repo with no CI. `gh pr checks` writes exactly `no checks reported on the '<branch>' branch` to stderr and exits `1` (verified against the live CLI — same exit code as a failure, which is why the message, not the code, is the discriminator). This is NOT a failure: the gate is vacuously satisfied. Note "no CI checks configured — CI gate skipped" in the ship summary and proceed to step 8. Do NOT route this into the fix loop.
+   - **Pending** — never proceed on a pending state. `--watch` already waits; if you are polling by hand instead, re-poll until the checks finish (`gh pr checks` exits `8` while any check is still pending).
+   - **All checks pass** (exit `0`) — the gate is satisfied; proceed to step 8.
+   - **A check fails** — a non-zero exit whose output is a real check result (not the "no checks reported" message above). Treat each failing check exactly like a review finding. Read the failing job's log, then **go back to step 2**: read `${CLAUDE_PLUGIN_ROOT}/shared/references/debugging.md`, dispatch the fix via step 6's implementer pattern (the orchestrator re-verifies and commits), and let the fix flow back through tests, push, and re-review before returning here. Never merge over a red check.
+
+8. **Auto-merge decision (`ship.autoMerge`):**
+
+   Read `ship.autoMerge` from `.claude/project.json`.
+
+   - **`false`** — STOP here. The work is complete and the PR is ready, but the merge is the user's call. Report: the PR URL, the review outcome (APPROVE, plus any nitpicks surfaced in the review summary), the CI result (all checks green), and the adjudication log. Then wait. Merge ONLY on the user's explicit instruction to merge — approval of the PR, the code, the approach, or the plan is NOT that instruction. When the user says to merge, continue to step 9.
+   - **`true`, key absent, or no `ship` block** — proceed to step 9 and merge. A missing key defaults to `true`, so project.json files written before this key existed keep the original auto-merge behavior (backward compatible).
+
+   The `enforce-merge-gate` hook is the mechanical backstop for the `false` case — it turns `gh pr merge` into an `ask`. That hook is a safety net, not the logic: this skill must reach the correct outcome on its own whether or not the hook fires.
+
+9. **Merge:**
+
+   **MERGE GATE — non-negotiable.** Before running `gh pr merge`, confirm all three hold: (1) the most recent pr-reviewer dispatch returned APPROVE; (2) every finding it raised is fixed or carries an adjudication entry; (3) the CI gate passed (all checks green). If any of the three is unmet, do not merge — loop back to the step that clears it. No finding is too trivial to skip this gate.
+
+   - If the APPROVE carried any NITPICK-level notes, record them in the PR summary/body before merging (`gh pr edit --body`) so they survive in the merged history rather than vanishing with the review.
+   - Merge with `gh pr merge --squash --delete-branch` (squash keeps the default branch history clean; `--delete-branch` removes the merged branch).
+   - Return to the default branch after the merge completes.
+
+10. **Post-merge: set Project Status to Done:**
    - If the PR body contains `closes #<n>`, extract the issue number(s) and set their Project Status to Done:
      ```bash
      ITEM_ID=$(gh project item-list <project.number> --owner <owner> --limit 200 --format json | jq -r '.items[] | select(.content.number == <n>) | .id')
@@ -68,6 +112,15 @@ Extract and hold in context:
        --field-id <fields.status.id> --single-select-option-id <fields.status.options.done>
      ```
    - This ensures the Project board stays in sync with issue state without relying on manual post-merge steps
+
+11. **Sub-issue roll-up:**
+
+   For each issue this run set to Done, check whether it has a parent and whether that parent's other sub-issues are now all closed. The combined-issue query already returns exactly this shape — the issue's `parent` plus that parent's `subIssues` with their `state` — so run `${CLAUDE_PLUGIN_ROOT}/skills/task/queries/combined-issue-query.graphql` for the Done issue's number (substitute owner, repo, number) rather than composing raw API calls.
+
+   - **No `parent`** — nothing to roll up.
+   - **`subIssues.pageInfo.hasNextPage` is `true`** — the parent has more sub-issues than this page returned (the query fetches `first: 100`). Do NOT declare the parent complete from a partial page: paginate through the rest (`after` the returned end cursor, or fetch the parent's sub-issues directly) and only judge completeness once every sub-issue's `state` is in hand. A parent that looks all-closed on page one may still have an open child on page two.
+   - **Parent still has open `subIssues`** (across all pages) — leave the parent alone; it has live children.
+   - **Every one of the parent's `subIssues` is closed** (confirmed across all pages) — post a comment on the parent (`gh issue comment <parentNumber>`) stating that all of its sub-issues are complete and it is ready for human review and closure. NEVER close the parent automatically — parent closure is always a human decision.
 
 ## Notes
 

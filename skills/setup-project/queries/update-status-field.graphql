@@ -1,6 +1,5 @@
 mutation {
   updateProjectV2Field(input: {
-    projectId: "<projectNodeId>",
     fieldId: "<statusFieldId>",
     singleSelectOptions: [
       { name: "Backlog", color: GRAY, description: "Not yet scoped" },

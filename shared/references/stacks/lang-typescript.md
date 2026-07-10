@@ -1,4 +1,6 @@
-# TypeScript / React / Node.js Review Criteria
+# JavaScript / TypeScript / React / Node.js Review Criteria
+
+This reference loads on `package.json` or `tsconfig.json`, which also matches pure-JavaScript repos. Apply the **React / Frontend** and **Node.js / Backend** criteria to any repo in this stack. Apply the **TypeScript-Specific** criteria only when the repo actually uses TypeScript — a `tsconfig.json` or `.ts`/`.tsx` sources are present. A pure-JavaScript repo (no TypeScript) is reviewed against the React and Node criteria alone; do not raise TypeScript-typing findings against JavaScript files.
 
 ## React / Frontend
 
@@ -28,6 +30,8 @@
 - Error responses — consistent error shape, no stack traces in production
 
 ## TypeScript-Specific
+
+*Applies only when the repo uses TypeScript (`tsconfig.json` present, or `.ts`/`.tsx` sources). Skip this whole section for pure-JavaScript repos.*
 
 - Implicit `any` — no untyped variables or parameters; enable `noImplicitAny`
 - Missing return types — public/exported functions should have explicit return types

@@ -1,11 +1,25 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "gh-pm",
-  "version": "3.0.1",
+  "displayName": "GitHub Project Management Workflows",
+  "version": "4.0.0",
   "description": "Project management workflows, enforcement hooks, and PR reviewer agent",
   "author": {
     "name": "trackness",
-    "email": "trackness@users.noreply.github.com"
+    "email": "trackness@users.noreply.github.com",
+    "url": "https://github.com/trackness"
   },
+  "homepage": "https://github.com/trackness/gh-pm#readme",
   "repository": "https://github.com/trackness/gh-pm",
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "github",
+    "project-management",
+    "pr-review",
+    "hooks",
+    "workflow",
+    "github-projects",
+    "issues",
+    "automation"
+  ]
 }

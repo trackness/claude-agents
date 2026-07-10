@@ -1,14 +1,18 @@
 ---
 name: setup-project
-description: Bootstrap a new repository with GitHub Project, labels, config, and standard workflow infrastructure. Run once per repo.
+description: Use to onboard a repository into the gh-pm workflow — a brand-new repo or an existing one being adopted. Run once per repo.
 disable-model-invocation: true
 ---
 
 # Setup Project
 
-Bootstrap a repository with the full trackness workflow infrastructure: GitHub Project with standard fields, labels, local config, and starter CLAUDE.md.
+Onboard a repository into the gh-pm workflow: a GitHub Project with standard fields, the standard label set, local config in `.claude/project.json`, and a starter CLAUDE.md.
 
-Run this once per new repo. Idempotent — safe to re-run; skips anything that already exists.
+Run this once per repo. It works two ways:
+- **New repo** — creates the GitHub repo, project, fields, and labels from scratch.
+- **Existing repo (adoption)** — reconciles with what is already there: reuses an existing project and labels, leaves an existing CLAUDE.md untouched, and non-destructively migrates an existing `.claude/project.json` by adding only the keys it is missing.
+
+Idempotent — safe to re-run; every step checks before it creates, and nothing already present is overwritten.
 
 ## Workflow
 
@@ -16,18 +20,27 @@ Run this once per new repo. Idempotent — safe to re-run; skips anything that a
 
 **Step 1: Check system dependencies**
 
+`gh` and `jq` are hard requirements — the skill (and every other gh-pm skill and hook) cannot run without them:
+
 ```bash
 gh --version
 jq --version
-task --version
-lefthook version
 ```
 
-Collect all missing tools. If any are missing, print a single command:
+If either is missing, print a single command and stop:
 ```
 Missing dependencies. Install with: brew install <missing tools>
 ```
 Stop. Do not proceed.
+
+Then probe for optional consumer-repo tooling — detected and noted if present, never blocking:
+
+```bash
+task --version    2>/dev/null && echo "task present"
+lefthook version  2>/dev/null && echo "lefthook present"
+```
+
+Neither is used by the plugin itself. Their presence is only a signal about how the consumer repo builds and tests — note whichever is installed and carry that forward to the test-command detection in Step 12 (a `task` runner suggests a `Taskfile.yml` with a `test` task). Missing either one is fine; do not print a missing-dependency error for them and never stop on their account.
 
 **Step 2: Check GitHub authentication and token scopes**
 
@@ -58,30 +71,17 @@ If this fails (no git repo or no GitHub remote):
 4. Create the GitHub repo: `gh repo create <owner>/<dir-name> --private --source . --push`
 5. Capture `owner`, `name`, and `id` from the newly created repo
 
-**Step 4: Check plugins**
-
-Check both plugins are installed:
-1. `gh-pm@trackness`
-2. `superpowers-extended-cc@superpowers-extended-cc-marketplace`
-
-For each missing plugin, offer to install:
-```bash
-claude plugin install <plugin-name>
-```
-
-If the user declines, warn that workflows will be incomplete but continue.
-
 ### Phase 2: GitHub Project
 
-**Step 5: Check for existing project**
+**Step 4: Check for existing project**
 
 ```bash
 gh project list --owner <owner> --format json
 ```
 
-Look for an existing project linked to this repo. If found, ask the user: "Found existing project '<name>'. Use it? (y/n)". If yes, capture its number and node ID and skip to step 10. If no, create a new one.
+Look for an existing project linked to this repo. If found, ask the user: "Found existing project '<name>'. Use it? (y/n)". If yes, capture its number and node ID, then skip **only** Step 5 (project creation) and continue at Step 6 — Steps 6-9 must still run to capture the Status/Priority/Effort/Type field IDs and option IDs that Step 14 writes into `.claude/project.json`. If no, create a new one at Step 5.
 
-**Step 6: Create the GitHub Project**
+**Step 5: Create the GitHub Project**
 
 ```bash
 gh project create --owner <owner> --title "<Repo Name> Backlog" --format json
@@ -89,9 +89,9 @@ gh project create --owner <owner> --title "<Repo Name> Backlog" --format json
 
 Capture the project number and node ID.
 
-**Step 7: Configure Status field**
+**Step 6: Configure Status field**
 
-Status is a built-in field. Query the project to get the Status field ID and its default options:
+Status is a built-in field that already exists on every project. Query it to get the field ID and its current options:
 
 ```bash
 gh project field-list <number> --owner <owner> --format json
@@ -104,29 +104,33 @@ The standard Status options are:
 4. Done
 5. Won't Do
 
-Add any missing options and capture all option IDs. Use the mutation at `${CLAUDE_SKILL_DIR}/queries/update-status-field.graphql`. Substitute the project node ID and status field ID.
+Take the branch that matches how you reached this step — do not run the replace mutation blindly, exactly as Steps 7-9 guard against re-creating an existing field:
 
-**Warning:** This mutation replaces all existing Status options. If the project has custom statuses beyond the standard 5, they will be lost. Fetch existing options first and verify before running.
+- **Reuse-existing-project path (Step 4 answered yes):** the board may already carry items assigned to Status options. If all five standard options are already present, capture their IDs and move on — do not touch the field (Idempotency rule: "Field exists → skip, capture ID"). If the standard set is present but you must add a genuinely missing option, follow the id-preserving path below rather than the plain replace mutation.
+- **Fresh-create path (came from Step 5):** a new project ships GitHub's default Status options (Todo, In Progress, Done) and has no items assigned, so replacing the option set is safe. Run the mutation at `${CLAUDE_SKILL_DIR}/queries/update-status-field.graphql` (substitute the status field ID) and capture all option IDs.
+- **Adding a missing option to an existing field (id-preserving):** never run the plain replace mutation. Include every existing option WITH its current `id` (from the field-list query) alongside the one you are adding, so only the new option gets a fresh ID.
 
-**Step 8: Create Priority field**
+**Warning:** `updateProjectV2Field`'s `singleSelectOptions` replaces the field's *entire* option set. `id` is optional in `ProjectV2SingleSelectFieldOptionInput` — options passed without an `id` are recreated with new IDs and lose their item assignments, and options omitted entirely are deleted. The regenerated IDs then get written into `.claude/project.json` at Step 14, silently desyncing any board item still pointing at the old IDs. On any board that already has the standard options (or custom statuses beyond the standard 5), fetch existing options first and preserve them by `id`; only the fresh-create path may run the plain replace mutation.
 
-Use the mutation at `${CLAUDE_SKILL_DIR}/queries/create-priority-field.graphql`. Substitute the project node ID. Capture field ID and all option IDs.
+**Step 7: Create Priority field**
 
-**Step 9: Create Effort field**
+First check whether the field already exists (it will on the reuse-existing-project path) with `gh project field-list <number> --owner <owner> --format json`. If a `Priority` field is present, capture its field ID and all option IDs and move on — do not re-create it. Otherwise create it with the mutation at `${CLAUDE_SKILL_DIR}/queries/create-priority-field.graphql` (substitute the project node ID) and capture field ID and all option IDs. Either path must end with the field ID and option IDs captured for Step 14.
 
-Use the mutation at `${CLAUDE_SKILL_DIR}/queries/create-effort-field.graphql`. Substitute the project node ID. Capture field ID and all option IDs.
+**Step 8: Create Effort field**
 
-**Step 10: Create Type field**
+First check whether the field already exists with `gh project field-list <number> --owner <owner> --format json`. If an `Effort` field is present, capture its field ID and all option IDs and move on — do not re-create it. Otherwise create it with the mutation at `${CLAUDE_SKILL_DIR}/queries/create-effort-field.graphql` (substitute the project node ID) and capture field ID and all option IDs. Either path must end with the field ID and option IDs captured for Step 14.
 
-Use the mutation at `${CLAUDE_SKILL_DIR}/queries/create-type-field.graphql`. Substitute the project node ID. Capture field ID and all option IDs.
+**Step 9: Create Type field**
 
-**Step 11: Link project to repository**
+First check whether the field already exists with `gh project field-list <number> --owner <owner> --format json`. If a `Type` field is present, capture its field ID and all option IDs and move on — do not re-create it. Otherwise create it with the mutation at `${CLAUDE_SKILL_DIR}/queries/create-type-field.graphql` (substitute the project node ID) and capture field ID and all option IDs. Either path must end with the field ID and option IDs captured for Step 14.
+
+**Step 10: Link project to repository**
 
 Use the mutation at `${CLAUDE_SKILL_DIR}/queries/link-project-to-repo.graphql`. Substitute the project node ID and repository node ID.
 
 ### Phase 3: Labels
 
-**Step 12: Create standard labels**
+**Step 11: Create standard labels**
 
 Create each label on the repo. Skip any that already exist (gh returns an error for duplicates — treat as success).
 
@@ -147,7 +151,7 @@ gh label create production   --color "b60205" --description "Rate limiting, grac
 
 ### Phase 4: Local Configuration
 
-**Step 13: Detect test command**
+**Step 12: Detect test command**
 
 Check in order:
 
@@ -162,23 +166,28 @@ Check in order:
 5. **pyproject.toml** → `uv run pytest`
 6. **Nothing found** — ask the user: "Could not detect test command. What command runs your tests?"
 
-**Step 14: Create .claude/ directory**
+**Step 13: Create .claude/ directory**
 
 ```bash
 mkdir -p .claude
 ```
 
-**Step 15: Write .claude/project.json**
+**Step 14: Write or migrate .claude/project.json**
 
-Read the template from `${CLAUDE_SKILL_DIR}/templates/project.json`. Substitute all placeholders with the actual values captured during setup (owner, repo, repository node ID, project number/node ID, all field IDs, all option IDs, test command). Note that `project.number` must be written as a number, not a string. Write the result to `.claude/project.json`.
+The `ship.autoMerge` policy is the only field in the `ship` block; it drives /ship's merge fork and the `enforce-merge-gate` hook. Whenever you are about to write that field (a fresh config, or a migration that lacks a `ship` block), ask the user first: "Should /ship merge automatically once a PR passes review and CI, or stop and wait for your explicit go-ahead? (auto / wait) [auto]". Default to `auto` on an empty answer. `auto` → `ship.autoMerge = true`; `wait` → `ship.autoMerge = false`.
 
-**Step 16: Generate starter CLAUDE.md**
+Write the config, taking the branch that matches the repo's current state:
+
+- **No `.claude/project.json` yet:** Read the template from `${CLAUDE_SKILL_DIR}/templates/project.json`. Substitute all placeholders with the actual values captured during setup (owner, repo, repository node ID, project number/node ID, all field IDs, all option IDs, test command), and set `ship.autoMerge` to the answer above (the template ships `true` as the default). `project.number` must be written as a number, not a string. Write the result to `.claude/project.json`.
+- **`.claude/project.json` already exists (adoption / migration):** Do NOT overwrite it — its captured IDs are live and re-capturing them is unnecessary. Read it and add only the keys it is missing. A config written before v4 has no `ship` block: add `"ship": {"autoMerge": <answer>}` (asking the auto-merge question only in this case) and leave every existing key exactly as it was. If a `ship` block is already present, leave it untouched and ask nothing. This is a migration, never a replacement — merging in the missing keys is what keeps re-running safe on an already-configured repo.
+
+**Step 15: Generate starter CLAUDE.md**
 
 Only create if CLAUDE.md does not already exist. If it exists, skip with a message.
 
-Read the template from `${CLAUDE_SKILL_DIR}/templates/CLAUDE.md`. Substitute `{number}`, `{owner}`, and `{testCommand}` with the actual values from the setup results. Write the result to `CLAUDE.md` in the repo root.
+Read the template from `${CLAUDE_SKILL_DIR}/templates/CLAUDE.md`. Substitute `<projectNumber>`, `<owner>`, and `<testCommand>` with the actual values from the setup results. Write the result to `CLAUDE.md` in the repo root.
 
-**Step 17: Update .gitignore**
+**Step 16: Update .gitignore**
 
 Append `.claude/settings.local.json` to `.gitignore` if not already present:
 
@@ -188,7 +197,7 @@ grep -q 'settings.local.json' .gitignore 2>/dev/null || echo '.claude/settings.l
 
 ### Phase 5: Post-setup
 
-**Step 18: Print summary**
+**Step 17: Print summary**
 
 ```
 Setup complete:
@@ -205,7 +214,7 @@ Files written (unstaged — review before committing):
   .gitignore
 ```
 
-**Step 19: Check global CLAUDE.md**
+**Step 18: Check global CLAUDE.md**
 
 ```bash
 test -f ~/.claude/CLAUDE.md
@@ -216,6 +225,15 @@ If missing, print:
 Note: No global ~/.claude/CLAUDE.md found. Consider creating one
 for behavioral rules that apply across all your repos.
 ```
+
+**Step 19: Offer an audit sweep (existing repos)**
+
+When this run adopted an existing repo — one that already had code, not one you just created empty — offer to run `/audit` now with ingestion enabled:
+```
+This repo already has code. Run /audit to sweep it for gaps and harvest any
+TODO/FIXME/ROADMAP intent onto the board? (y/n)
+```
+On yes, hand off to `/audit`. On no, note that `/audit` can be run at any time. Skip this offer entirely for a brand-new empty repo — there is nothing to sweep yet.
 
 **Step 20: Leave files unstaged**
 
@@ -228,7 +246,7 @@ Every step checks before creating:
 2. Field exists → skip, capture ID
 3. Label exists → skip
 4. `.claude/` exists → skip mkdir
-5. `project.json` exists → overwrite (it's generated config)
+5. `project.json` exists → migrate in place — add only the keys it lacks (e.g. the `ship` block); never overwrite live captured IDs
 6. `CLAUDE.md` exists → skip (never overwrite user content)
 7. `.gitignore` entry exists → skip
 

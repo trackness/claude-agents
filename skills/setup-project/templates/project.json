@@ -50,6 +50,9 @@
     }
   },
   "testCommand": "<testCommand>",
+  "ship": {
+    "autoMerge": true
+  },
   "labels": [
     "security", "infrastructure", "testing", "reliability",
     "ux", "accessibility", "devops", "documentation",

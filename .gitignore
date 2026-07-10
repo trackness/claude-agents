@@ -1,3 +1,5 @@
 .idea/
+.codegraph/
 .graphqlconfig
 graphql.config.yml
+.claude/worktrees/

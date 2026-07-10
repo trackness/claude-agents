@@ -1,10 +1,16 @@
 { repository(owner: "<owner>", name: "<repo>") {
     issue(number: <issueNumber>) {
       id
-      blockedBy(first: 20) { nodes { number state stateReason } }
+      blockedBy(first: 100) {
+        nodes { number state stateReason }
+        pageInfo { hasNextPage endCursor }
+      }
       parent {
         number title
-        subIssues(first: 20) { nodes { number title state } }
+        subIssues(first: 100) {
+          nodes { number title state }
+          pageInfo { hasNextPage endCursor }
+        }
       }
       linkedBranches(first: 5) { nodes { id ref { name } } }
     }
