@@ -91,7 +91,7 @@ Capture the project number and node ID.
 
 **Step 6: Configure Status field**
 
-Status is a built-in field. Query the project to get the Status field ID and its default options:
+Status is a built-in field that already exists on every project. Query it to get the field ID and its current options:
 
 ```bash
 gh project field-list <number> --owner <owner> --format json
@@ -104,9 +104,13 @@ The standard Status options are:
 4. Done
 5. Won't Do
 
-Add any missing options and capture all option IDs. Use the mutation at `${CLAUDE_SKILL_DIR}/queries/update-status-field.graphql`. Substitute the status field ID.
+Take the branch that matches how you reached this step — do not run the replace mutation blindly, exactly as Steps 7-9 guard against re-creating an existing field:
 
-**Warning:** This mutation replaces all existing Status options. If the project has custom statuses beyond the standard 5, they will be lost. Fetch existing options first and verify before running.
+- **Reuse-existing-project path (Step 4 answered yes):** the board may already carry items assigned to Status options. If all five standard options are already present, capture their IDs and move on — do not touch the field (Idempotency rule: "Field exists → skip, capture ID"). If the standard set is present but you must add a genuinely missing option, follow the id-preserving path below rather than the plain replace mutation.
+- **Fresh-create path (came from Step 5):** a new project ships GitHub's default Status options (Todo, In Progress, Done) and has no items assigned, so replacing the option set is safe. Run the mutation at `${CLAUDE_SKILL_DIR}/queries/update-status-field.graphql` (substitute the status field ID) and capture all option IDs.
+- **Adding a missing option to an existing field (id-preserving):** never run the plain replace mutation. Include every existing option WITH its current `id` (from the field-list query) alongside the one you are adding, so only the new option gets a fresh ID.
+
+**Warning:** `updateProjectV2Field`'s `singleSelectOptions` replaces the field's *entire* option set. `id` is optional in `ProjectV2SingleSelectFieldOptionInput` — options passed without an `id` are recreated with new IDs and lose their item assignments, and options omitted entirely are deleted. The regenerated IDs then get written into `.claude/project.json` at Step 14, silently desyncing any board item still pointing at the old IDs. On any board that already has the standard options (or custom statuses beyond the standard 5), fetch existing options first and preserve them by `id`; only the fresh-create path may run the plain replace mutation.
 
 **Step 7: Create Priority field**
 
