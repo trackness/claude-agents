@@ -29,6 +29,8 @@ Before reviewing, detect the project's technology stack by checking for these fi
 
 Use `Glob` to check which of these files exist. Then use `Read` to load **all** matching reference files — a project may use multiple stacks. Apply the criteria from loaded references during the Deep Analysis phase.
 
+**Reference rules are authoritative.** When a loaded reference says "do X" or "don't do X", that is the standard — not the existing codebase. Do not override reference rules based on what existing code in the repository does. If the PR introduces code that violates a reference rule, it is a finding at the severity the violation warrants, even if every other file in the repo does the same thing. "Consistent with existing code" is never a reason to skip, soften, or downgrade a finding. When a violation also exists in other code touched by the PR, recommend fixing all instances — not just the new additions.
+
 ### 2. Investigation Phase (use tools extensively)
 - Run `git diff` to see all changes against the base branch
 - Run `git log` to understand commit history and context
