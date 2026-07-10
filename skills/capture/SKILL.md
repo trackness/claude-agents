@@ -30,7 +30,7 @@ Extract and hold in context:
 
 ## Contract
 
-Capture performs **no writes until the user approves** the drafted item. It **never** creates a branch, never commits, and never writes a file to disk. Its only writes — reached only after explicit approval — are: create (or adopt) the issue; on the adopt path, reshape the adopted issue's body to the template where (and only where) the user approved that reshape in steps 3 and 5; add it to the board; set Status to Backlog; and apply the confirmed labels and Type. Nothing else — and every one of these, the body reshape included, stays behind the same approval gate.
+Capture performs **no writes until the user approves** the drafted item. It **never** creates a branch, never commits, and never writes a file to disk. Its only writes — reached only after explicit approval — are: create (or adopt) the issue; on the adopt path, reshape the adopted issue's body to the template where (and only where) the user approved that reshape at the step 4 confirmation gate; add it to the board; set Status to Backlog; and apply the confirmed labels and Type. Nothing else — and every one of these, the body reshape included, stays behind the same approval gate.
 
 ## Workflow
 
@@ -75,9 +75,12 @@ Capture performs **no writes until the user approves** the drafted item. It **ne
    # apply confirmed labels; reshape the body only if the user approved reshaping
    gh issue edit <n> --add-label "label1,label2"
    ITEM_ID=$(gh project item-add <project.number> --owner <owner> --url "$ISSUE_URL" --format json | jq -r '.id')
-   # Status = Backlog, then Type as above
+   # Status = Backlog
    gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
      --field-id <fields.status.id> --single-select-option-id <fields.status.options.backlog>
+   # Type (only the option the user confirmed)
+   gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
+     --field-id <fields.type.id> --single-select-option-id <fields.type.options.CHOSEN>
    ```
 
 ## Error Handling
