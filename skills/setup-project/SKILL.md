@@ -79,7 +79,7 @@ If this fails (no git repo or no GitHub remote):
 gh project list --owner <owner> --format json
 ```
 
-Look for an existing project linked to this repo. If found, ask the user: "Found existing project '<name>'. Use it? (y/n)". If yes, capture its number and node ID and skip to step 9. If no, create a new one.
+Look for an existing project linked to this repo. If found, ask the user: "Found existing project '<name>'. Use it? (y/n)". If yes, capture its number and node ID, then skip **only** Step 5 (project creation) and continue at Step 6 — Steps 6-9 must still run to capture the Status/Priority/Effort/Type field IDs and option IDs that Step 14 writes into `.claude/project.json`. If no, create a new one at Step 5.
 
 **Step 5: Create the GitHub Project**
 
@@ -110,15 +110,15 @@ Add any missing options and capture all option IDs. Use the mutation at `${CLAUD
 
 **Step 7: Create Priority field**
 
-Use the mutation at `${CLAUDE_SKILL_DIR}/queries/create-priority-field.graphql`. Substitute the project node ID. Capture field ID and all option IDs.
+First check whether the field already exists (it will on the reuse-existing-project path) with `gh project field-list <number> --owner <owner> --format json`. If a `Priority` field is present, capture its field ID and all option IDs and move on — do not re-create it. Otherwise create it with the mutation at `${CLAUDE_SKILL_DIR}/queries/create-priority-field.graphql` (substitute the project node ID) and capture field ID and all option IDs. Either path must end with the field ID and option IDs captured for Step 14.
 
 **Step 8: Create Effort field**
 
-Use the mutation at `${CLAUDE_SKILL_DIR}/queries/create-effort-field.graphql`. Substitute the project node ID. Capture field ID and all option IDs.
+First check whether the field already exists with `gh project field-list <number> --owner <owner> --format json`. If an `Effort` field is present, capture its field ID and all option IDs and move on — do not re-create it. Otherwise create it with the mutation at `${CLAUDE_SKILL_DIR}/queries/create-effort-field.graphql` (substitute the project node ID) and capture field ID and all option IDs. Either path must end with the field ID and option IDs captured for Step 14.
 
 **Step 9: Create Type field**
 
-Use the mutation at `${CLAUDE_SKILL_DIR}/queries/create-type-field.graphql`. Substitute the project node ID. Capture field ID and all option IDs.
+First check whether the field already exists with `gh project field-list <number> --owner <owner> --format json`. If a `Type` field is present, capture its field ID and all option IDs and move on — do not re-create it. Otherwise create it with the mutation at `${CLAUDE_SKILL_DIR}/queries/create-type-field.graphql` (substitute the project node ID) and capture field ID and all option IDs. Either path must end with the field ID and option IDs captured for Step 14.
 
 **Step 10: Link project to repository**
 

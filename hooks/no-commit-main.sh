@@ -9,21 +9,27 @@ INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // ""')
 CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
 
+# Strip quoted spans before scanning for flags so tokens inside the commit message
+# (git commit -m "do not --amend published commits") are treated as prose, not as
+# --amend/-C/--git-dir flags. A real flag must sit OUTSIDE quotes to function.
+# Single-quoted spans removed first, then double-quoted — portable BSD/GNU sed.
+SANITIZED=$(echo "$COMMAND" | sed -e "s/'[^']*'//g" -e 's/"[^"]*"//g')
+
 # Gate on git + commit non-adjacently so flags between them (`git -C DIR commit`,
 # `git -c k=v commit`) are still inspected.
-echo "$COMMAND" | grep -qE '\bgit\b.*\bcommit\b' || exit 0
+echo "$SANITIZED" | grep -qE '\bgit\b.*\bcommit\b' || exit 0
 
 # Allow --amend in any abbreviated form. --amen is the shortest unambiguous prefix
 # of --amend for git commit, so match from there onward.
-echo "$COMMAND" | grep -qE '\-\-amen' && exit 0
+echo "$SANITIZED" | grep -qE '\-\-amen' && exit 0
 
 # Directory/repo-redirecting invocations make the operation target a repo other
 # than $CWD, so the $CWD-based branch check below cannot be trusted — ask instead
 # of guessing. --git-dir and --work-tree are top-level-only, so match them
 # anywhere; -C is matched only when it precedes the commit subcommand (commit's
 # own `-C <commit>` reuse-message flag stays in $CWD and must not trigger this).
-if echo "$COMMAND" | grep -qE '\-\-git-dir|\-\-work-tree' \
-  || echo "$COMMAND" | grep -qE '(^|[[:space:]])-C[[:space:]].*\bcommit\b'; then
+if echo "$SANITIZED" | grep -qE '\-\-git-dir|\-\-work-tree' \
+  || echo "$SANITIZED" | grep -qE '(^|[[:space:]])-C[[:space:]].*\bcommit\b'; then
   cat <<'EOF'
 {
   "hookSpecificOutput": {
