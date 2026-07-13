@@ -62,13 +62,14 @@ In the commands below, a placeholder like `<fields.priority.options.CHOSEN>` (an
    - The issue title may be refined during the dialogue.
    - If the dialogue reveals the issue is Highest-effort and should be broken down, draft sub-issues (each a full template body) instead of one.
 
-   **Final Ready check (spec self-review).** Before presenting the draft, confirm it meets the **Ready invariant** defined in the header comment of `${CLAUDE_PLUGIN_ROOT}/shared/templates/issue-body.md` (body complete per the template; Effort, Priority, and Type set; not blocked by an open issue). The four checks below are the mechanical teeth that verify it:
+   **Final Ready check (spec self-review).** Before presenting the draft, confirm it meets the **Ready invariant** defined in the header comment of `${CLAUDE_PLUGIN_ROOT}/shared/templates/issue-body.md` (body complete per the template; Effort, Priority, and Type set; not blocked by an open issue). The five checks below are the mechanical teeth that verify it:
    - **Placeholder scan** — no "TBD", no "add appropriate X", no unfilled template slots, no "similar to …" hand-waves.
    - **Internal consistency** — Why, Implementation, Files, Testing, and Acceptance Criteria agree with one another; no section contradicts another.
    - **Scope check** — every item in scope is needed, nothing speculative survived the YAGNI cut, and the Effort estimate matches the described work.
    - **Ambiguity check** — a fresh implementer could build this without asking a question. Any sentence open to two readings gets rewritten.
+   - **Dependency check (invariant limb 5)** — resolve every blockedBy relationship the issue will carry: those already on it and any this promotion is about to add. Confirm each blocker is CLOSED with stateReason COMPLETED. A single open blocker fails the invariant — the issue cannot go Ready. It is filed or left as Backlog with the dependency still recorded, and step 6 tells the user it stays blocked until the blocker closes.
 
-   **Adversarial spec-review (mandatory — every promotion).** After the four checks above pass, ALWAYS dispatch one fresh-context spec-review subagent via the Agent tool. Give it ONLY the drafted issue body — no research map, no dialogue history, no reasoning that led here. Charter it to refute: hunt gaps, contradictions, unstated assumptions, and untestable acceptance criteria, and report its findings without trusting the draft. A fresh mind reads the spec the way the future implementer will: cold. Fold its findings back into the body before presenting the draft in step 5. This dispatch is never skipped — not for a small issue, not for an obvious one, not under time pressure, not because the self-review already passed.
+   **Adversarial spec-review (mandatory — every promotion).** After the five checks above pass, ALWAYS dispatch one fresh-context spec-review subagent via the Agent tool. Give it ONLY the drafted issue body — no research map, no dialogue history, no reasoning that led here. Charter it to refute: hunt gaps, contradictions, unstated assumptions, and untestable acceptance criteria, and report its findings without trusting the draft. A fresh mind reads the spec the way the future implementer will: cold. Fold its findings back into the body before presenting the draft in step 5. This dispatch is never skipped — not for a small issue, not for an obvious one, not under time pressure, not because the self-review already passed.
 
 4. **Won't Do exit (when the honest conclusion is "don't do this"):**
 
@@ -98,23 +99,34 @@ In the commands below, a placeholder like `<fields.priority.options.CHOSEN>` (an
      gh issue edit <n> --body "..." --add-label "label1,label2"
      # Get project item ID
      ITEM_ID=$(gh project item-list <project.number> --owner <owner> --limit 200 --format json | jq -r '.items[] | select(.content.number == <n>) | .id')
-     # Status = Ready
-     gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
-       --field-id <fields.status.id> --single-select-option-id <fields.status.options.ready>
-     # Priority
-     gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
-       --field-id <fields.priority.id> --single-select-option-id <fields.priority.options.CHOSEN>
-     # Effort
-     gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
-       --field-id <fields.effort.id> --single-select-option-id <fields.effort.options.CHOSEN>
-     # Type
-     gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
-       --field-id <fields.type.id> --single-select-option-id <fields.type.options.CHOSEN>
      ```
-     Set dependencies via the mutation at `${CLAUDE_PLUGIN_ROOT}/shared/queries/add-blocked-by.graphql` if applicable.
+     **Attach dependencies before the status write.** Add every blockedBy relationship this promotion introduces via the mutation at `${CLAUDE_PLUGIN_ROOT}/shared/queries/add-blocked-by.graphql`, so the issue's full dependency set is on record before its Status is decided.
+
+     **Pre-Ready dependency check.** Query the state of every blockedBy relationship the issue now carries — those already on it and those just added — and confirm each blocker is CLOSED with stateReason COMPLETED. Then set the Status accordingly:
+     - **Every blocker closed/completed (or none):** the item is Ready. Set its project fields:
+       ```bash
+       # Status = Ready
+       gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
+         --field-id <fields.status.id> --single-select-option-id <fields.status.options.ready>
+       # Priority
+       gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
+         --field-id <fields.priority.id> --single-select-option-id <fields.priority.options.CHOSEN>
+       # Effort
+       gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
+         --field-id <fields.effort.id> --single-select-option-id <fields.effort.options.CHOSEN>
+       # Type
+       gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
+         --field-id <fields.type.id> --single-select-option-id <fields.type.options.CHOSEN>
+       ```
+     - **Any blocker still open:** the item is NOT Ready. Leave its Status at Backlog (the dependency stays recorded from the attach step above, and the specified body was already written by the `gh issue edit` above), and tell the user it stays blocked until the open blocker closes — a later `/promote` re-run sets Ready plus Priority/Effort/Type once the blocker clears:
+       ```bash
+       # Status = Backlog (blocked by an open issue)
+       gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
+         --field-id <fields.status.id> --single-select-option-id <fields.status.options.backlog>
+       ```
 
    - **Breakdown path (Highest-effort):**
-     The original Backlog issue becomes the parent — update its body to describe the overall effort. Set Status = Ready, Priority, Effort, Type on the parent (it carries all project fields). Create child issues with full template bodies. Add children via the mutation at `${CLAUDE_SKILL_DIR}/queries/add-sub-issue.graphql`. Do NOT add children to the Project board. Set dependencies on children via `${CLAUDE_PLUGIN_ROOT}/shared/queries/add-blocked-by.graphql` as needed.
+     The original Backlog issue becomes the parent — update its body to describe the overall effort. Create child issues with full template bodies and add them via the mutation at `${CLAUDE_SKILL_DIR}/queries/add-sub-issue.graphql`. Do NOT add children to the Project board. Attach dependencies — on the parent and on any child — via `${CLAUDE_PLUGIN_ROOT}/shared/queries/add-blocked-by.graphql` before the status write, then run the same **pre-Ready dependency check** against the parent (which carries all project fields): set the parent to Status = Ready with Priority, Effort, and Type only when every blocker it carries is CLOSED/COMPLETED; if any blocker is open, leave the parent as Backlog with the dependency recorded and tell the user it stays blocked.
 
 ## Error Handling
 
