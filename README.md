@@ -94,6 +94,7 @@ gh-pm/
 │   │   ├── tdd.md                       # Vendored TDD methodology
 │   │   ├── verification.md              # Vendored verification gate
 │   │   ├── debugging.md                 # Vendored root-cause debugging
+│   │   ├── LICENSE-THIRD-PARTY.md       # License for the vendored methodology above
 │   │   └── stacks/                      # Stack-specific review criteria
 │   │       ├── lang-typescript.md       # JavaScript / TypeScript / React / Node.js
 │   │       ├── lang-go.md
@@ -303,6 +304,18 @@ flowchart LR
     G --> H[Reason sent to Claude]
     H --> I[Claude adjusts approach]
 ```
+
+## Testing
+
+The full story is in `CLAUDE.md`'s "Testing Changes" and "Development Rules" sections; this is the short path for a first-time contributor.
+
+- **Skills and the agent:** run against a real consumer repo without publishing — `claude --plugin-dir /path/to/gh-pm` — then invoke any `/gh-pm:<skill-name>` skill or dispatch `subagent_type: "gh-pm:pr-reviewer"` there.
+- **Hooks:** drive a hook directly by piping sample event JSON to it:
+  ```bash
+  echo '{"tool_input":{"command":"git commit -m test"},"cwd":"/tmp"}' | ./hooks/no-commit-main.sh
+  ```
+  A deny or ask decision prints JSON; an allowed command prints nothing.
+- **Keep hooks executable:** after creating or editing a script under `hooks/`, run `chmod +x hooks/*.sh` — a non-executable hook fails silently.
 
 ## Versioning
 

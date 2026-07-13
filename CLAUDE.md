@@ -114,10 +114,11 @@ hooks/
   setup-nudge.sh          Session-start onboarding nudge (offer /setup-project; schema migration; opt-out)
 shared/                 Library shared across skills and the agent
   references/
-    tdd.md              Vendored TDD methodology (task step 8)
-    verification.md     Vendored verification gate (task step 9)
-    debugging.md        Vendored root-cause debugging (ship step 2)
-    stacks/             Stack-specific review criteria (pr-reviewer + audit)
+    tdd.md                  Vendored TDD methodology (task step 8)
+    verification.md         Vendored verification gate (task step 9)
+    debugging.md            Vendored root-cause debugging (ship step 2)
+    LICENSE-THIRD-PARTY.md  License for the vendored methodology above
+    stacks/                 Stack-specific review criteria (pr-reviewer + audit)
       lang-typescript.md  JavaScript / TypeScript / React / Node.js
       lang-go.md          Go
       lang-rust.md        Rust
