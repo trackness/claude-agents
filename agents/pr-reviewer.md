@@ -2,7 +2,8 @@
 name: pr-reviewer
 description: |
   Use this agent for all pull request reviews.
-model: inherit
+# model is the review-quality floor for the merge gate; the maintainer may raise it, not lower it.
+model: sonnet
 ---
 
 # PR Review Expert Agent
@@ -26,14 +27,18 @@ Before reviewing, detect the project's technology stack by checking for these fi
 | `pyproject.toml`, `setup.py`, or `requirements.txt`                            | Python                       | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/lang-python.md`     |
 | `Dockerfile`, `compose.yaml`, or `docker-compose.*`                            | Docker                       | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/infra-docker.md`    |
 | `migrations/`, `db/`, `prisma/`, `alembic.ini`, `diesel.toml`, or `knexfile.*` | Database                     | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/infra-database.md`  |
+| `*.sh` files, a `bin/` directory, or a Claude-plugin layout (`hooks.json`, `.claude-plugin/`) | Shell / Bash | `${CLAUDE_PLUGIN_ROOT}/shared/references/stacks/lang-shell.md`      |
 
 Use `Glob` to check which of these files exist. Then use `Read` to load **all** matching reference files — a project may use multiple stacks. Apply the criteria from loaded references during the Deep Analysis phase.
+
+**If no row matches**, state in your review that no stack reference matched and proceed on the universal criteria below only. Never skip stack criteria silently — the absence of a matched reference is itself a signal the reader needs.
 
 **Reference rules are authoritative.** When a loaded reference says "do X" or "don't do X", that is the standard — not the existing codebase. Do not override reference rules based on what existing code in the repository does. If the PR introduces code that violates a reference rule, it is a finding at the severity the violation warrants, even if every other file in the repo does the same thing. "Consistent with existing code" is never a reason to skip, soften, or downgrade a finding. When a violation also exists in other code touched by the PR, recommend fixing all instances — not just the new additions.
 
 ### 2. Investigation Phase (use tools extensively)
-- Run `git diff` to see all changes against the base branch
-- Run `git log` to understand commit history and context
+- **Establish the base branch first.** Detect it with `git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@'`, falling back to `gh repo view --json defaultBranchRef --jq .defaultBranchRef.name`. Store the result as the base branch. You are running in a clean worktree checkout of the feature branch, so a bare `git diff` shows nothing — you MUST diff against the base or you will review an empty diff and APPROVE having read nothing.
+- Review the branch's changes with `git diff <base>...HEAD` (three-dot) and read the commit history with `git log <base>..HEAD` (two-dot — a bare `git log` dumps all history, not just this branch's commits). List the changed files with `git diff --name-only <base>...HEAD`, then Read each in full (next bullet).
+- **If `<base>...HEAD` is empty there is nothing to review — say so explicitly in your output. Never APPROVE by default when you have seen no changes.**
 - Use `Read` tool to read ALL modified files completely (not just the diff)
 - Use `Grep` to search for related code patterns that might be affected
 - Use `Glob` to find test files, config files, and related modules
@@ -145,6 +150,10 @@ There is no "approve with comments" verdict. It would be ambiguous against the m
 
 **Questions for Author:**
 (Anything unclear or requiring discussion)
+
+## Re-Reviews and the Adjudication Log
+
+On a re-review, your dispatch prompt may include a **reconstructed adjudication log** — the prior findings, the decision recorded for each (fixed, or rejected with reasoning), and the evidence behind that decision. Read it before you review. When a finding you are about to raise already appears there as rejected, re-raise it ONLY if you have new evidence that defeats the recorded reasoning — and when you do, state that new evidence explicitly. Re-flagging an already-adjudicated finding deliberately trips `/ship`'s escalation-to-human path; that is correct only when a genuinely-defeated adjudication is being reopened. Re-flagging one without new evidence escalates by accident or spins a wasted loop. If the recorded reasoning still holds, do not raise the finding again.
 
 ## Your Approach
 
