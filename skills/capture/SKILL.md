@@ -25,12 +25,11 @@ Extract and hold in context:
 - `github.owner`, `github.repo`
 - `github.project.number`, `github.project.nodeId`
 - `github.project.fields.status.id` and the `backlog` status option
-- `github.project.fields.type.id` and its options
 - `labels` list
 
 ## Contract
 
-Capture performs **no writes until the user approves** the drafted item. It **never** creates a branch, never commits, and never writes a file to disk. Its only writes — reached only after explicit approval — are: create (or adopt) the issue; on the adopt path, reshape the adopted issue's body to the template where (and only where) the user approved that reshape at the step 4 confirmation gate; add it to the board; set Status to Backlog; and apply the confirmed labels and Type. Nothing else — and every one of these, the body reshape included, stays behind the same approval gate.
+Capture performs **no writes until the user approves** the drafted item. It **never** creates a branch, never commits, and never writes a file to disk. Its only writes — reached only after explicit approval — are: create (or adopt) the issue; on the adopt path, reshape the adopted issue's body to the template where (and only where) the user approved that reshape at the step 4 confirmation gate; add it to the board; set Status to Backlog; and apply the confirmed labels. Nothing else — and every one of these, the body reshape included, stays behind the same approval gate.
 
 ## Workflow
 
@@ -47,12 +46,11 @@ Capture performs **no writes until the user approves** the drafted item. It **ne
 3. **Draft the item:**
    - **Title** — a concise, specific summary.
    - **Body** — fill the template at `${CLAUDE_PLUGIN_ROOT}/shared/templates/issue-body.md`. Stub sections are acceptable here: a Backlog item is a placeholder for future research, and `/promote` fills the specification later. Capture what is known; do not invent detail.
-   - **Suggested labels** — pick from the `labels` list in project.json.
-   - **Suggested Type** — pick one of the Type options in project.json (feat / fix / chore / refactor). Priority and Effort are left unset; those are determined during `/promote`.
+   - **Suggested labels** — pick from the `labels` list in project.json. Priority, Effort, and Type are left unset — a Backlog item carries no such fields; they are all determined during `/promote`.
    - Adopt path: read the existing body with `gh issue view <n>`; propose reshaping it to the template only where sections are missing, and never discard content the user wrote.
 
 4. **Confirm before any write:**
-   - Present the title, body, suggested labels, and suggested Type to the user.
+   - Present the title, body, and suggested labels to the user.
    - Do nothing further until the user approves. Approval of the draft is the only trigger for step 5.
 
 5. **On approval — create/adopt, then file to Backlog:**
@@ -64,9 +62,6 @@ Capture performs **no writes until the user approves** the drafted item. It **ne
    # Status = Backlog
    gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
      --field-id <fields.status.id> --single-select-option-id <fields.status.options.backlog>
-   # Type (only the option the user confirmed)
-   gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
-     --field-id <fields.type.id> --single-select-option-id <fields.type.options.CHOSEN>
    ```
 
    **Adopt path:**
@@ -78,9 +73,6 @@ Capture performs **no writes until the user approves** the drafted item. It **ne
    # Status = Backlog
    gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
      --field-id <fields.status.id> --single-select-option-id <fields.status.options.backlog>
-   # Type (only the option the user confirmed)
-   gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
-     --field-id <fields.type.id> --single-select-option-id <fields.type.options.CHOSEN>
    ```
 
 ## Error Handling
