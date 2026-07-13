@@ -15,13 +15,27 @@ CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
 # Single-quoted spans removed first, then double-quoted — portable BSD/GNU sed.
 SANITIZED=$(echo "$COMMAND" | sed -e "s/'[^']*'//g" -e 's/"[^"]*"//g')
 
-# Gate on git + commit non-adjacently so flags between them (`git -C DIR commit`,
-# `git -c k=v commit`) are still inspected.
-echo "$SANITIZED" | grep -qE '\bgit\b.*\bcommit\b' || exit 0
+# Split the sanitized line into top-level segments on ; && || | & and newline, so
+# an --amend in one segment cannot exempt a real commit in another (a line-global
+# --amend match would let `git commit -m real; echo --amend` slip through), and a
+# pipeline like `git log | grep commit` is not mistaken for a commit. `&&`/`||`
+# split into an extra empty segment, which is harmless.
+#
+# A segment is a commit invocation when it contains `git` … `commit` non-adjacently
+# (so `git -C DIR commit`/`git -c k=v commit` still count). REAL_COMMIT is set when
+# at least one commit segment is NOT an --amend; only then does the branch check
+# apply. --amen is the shortest unambiguous prefix of --amend for git commit, so
+# match from there onward.
+SEGMENTS=$(echo "$SANITIZED" | tr ';&|' '\n')
+REAL_COMMIT=0
+while IFS= read -r SEG; do
+  echo "$SEG" | grep -qE '\bgit\b.*\bcommit\b' || continue
+  echo "$SEG" | grep -qE '\-\-amen' && continue
+  REAL_COMMIT=1
+done <<< "$SEGMENTS"
 
-# Allow --amend in any abbreviated form. --amen is the shortest unambiguous prefix
-# of --amend for git commit, so match from there onward.
-echo "$SANITIZED" | grep -qE '\-\-amen' && exit 0
+# No real (non-amend) commit segment → nothing to guard, allow.
+[ "$REAL_COMMIT" -eq 1 ] || exit 0
 
 # Directory/repo-redirecting invocations make the operation target a repo other
 # than $CWD, so the $CWD-based branch check below cannot be trusted — ask instead
@@ -89,6 +103,32 @@ EOF
   fi
 fi
 
+# Already on the default branch → deny the direct commit.
 if [ "$BRANCH" = "$DEFAULT_BRANCH" ]; then
   printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "PreToolUse",\n    "permissionDecision": "deny",\n    "permissionDecisionReason": "Cannot commit directly to %s. Create a feature branch first."\n  }\n}\n' "$DEFAULT_BRANCH"
+  exit 0
 fi
+
+# On a feature branch, but the same line switches/checks out the default branch
+# before committing — the eval-time branch cannot be trusted, so ask. Match
+# `git switch|checkout [-c|-b] <name>` for the detected default plus literal
+# main/master. \b is already used elsewhere in this hook and is portable here.
+SWITCH_ALT="main|master"
+if [ "$DEFAULT_BRANCH" != "main" ] && [ "$DEFAULT_BRANCH" != "master" ]; then
+  SWITCH_ALT="$DEFAULT_BRANCH|$SWITCH_ALT"
+fi
+if echo "$SANITIZED" | grep -qE "\bgit\b[[:space:]]+(switch|checkout)[[:space:]]+((-c|-b)[[:space:]]+)?($SWITCH_ALT)\b"; then
+  cat <<'EOF'
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "ask",
+    "permissionDecisionReason": "This command switches to the default branch before committing, so the current-branch check is unreliable. Confirm this commit is not to a default branch."
+  }
+}
+EOF
+  exit 0
+fi
+
+# Feature branch, no switch to the default branch → allow.
+exit 0
