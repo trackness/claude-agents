@@ -179,7 +179,7 @@ The `ship.autoMerge` policy is the only field in the `ship` block; it drives /sh
 Write the config, taking the branch that matches the repo's current state:
 
 - **No `.claude/project.json` yet:** Read the template from `${CLAUDE_SKILL_DIR}/templates/project.json`. Substitute all placeholders with the actual values captured during setup (owner, repo, repository node ID, project number/node ID, all field IDs, all option IDs, test command), and set `ship.autoMerge` to the answer above (the template ships `true` as the default). `project.number` must be written as a number, not a string. Write the result to `.claude/project.json`.
-- **`.claude/project.json` already exists (adoption / migration):** Do NOT overwrite it — its captured IDs are live and re-capturing them is unnecessary. Read it and add only the keys it is missing. A config written before v4 has no `ship` block: add `"ship": {"autoMerge": <answer>}` (asking the auto-merge question only in this case) and leave every existing key exactly as it was. If a `ship` block is already present, leave it untouched and ask nothing. This is a migration, never a replacement — merging in the missing keys is what keeps re-running safe on an already-configured repo.
+- **`.claude/project.json` already exists (adoption / migration):** Do NOT overwrite it — its captured IDs are live and re-capturing them is unnecessary. Read it, then reconcile it against the **full template** at `${CLAUDE_SKILL_DIR}/templates/project.json`: for every key the template defines that is absent from the consumer's config, capture its value and add it, while leaving every key already present exactly as it was. Capture each missing value the same way a fresh write does — e.g. `github.repositoryNodeId` from `gh repo view --json id`; any missing field ID or option ID from the `gh project field-list` queries already run in Steps 6–9; `testCommand` from Step 12's detection. The `ship` block is one specific case of a missing key, not the only one: a config written before v4 has none, so add `"ship": {"autoMerge": <answer>}` — and it is the only missing key that prompts the user (ask the auto-merge question only when adding a missing `ship` block; every other backfilled key is captured silently). If a key — the `ship` block included — is already present, leave it untouched and ask nothing about it. This is a migration, never a replacement — merging in every missing template key is what keeps re-running safe on an already-configured repo.
 
 **Step 15: Generate starter CLAUDE.md**
 
@@ -246,7 +246,7 @@ Every step checks before creating:
 2. Field exists → skip, capture ID
 3. Label exists → skip
 4. `.claude/` exists → skip mkdir
-5. `project.json` exists → migrate in place — add only the keys it lacks (e.g. the `ship` block); never overwrite live captured IDs
+5. `project.json` exists → migrate in place — add every missing template key (e.g. the `ship` block); never overwrite live captured IDs
 6. `CLAUDE.md` exists → skip (never overwrite user content)
 7. `.gitignore` entry exists → skip
 

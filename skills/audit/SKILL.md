@@ -80,7 +80,7 @@ Orchestration and the per-item approval gate live here in the main loop. The bul
 
    **Common dispatch mistakes to avoid:** overlapping scopes that double-count; assuming a subagent shares your context (it does not — spell it out); leaving the return format unstated; dispatching work with sequential dependencies as if it were parallel (only independent reads fan out); letting a subagent write instead of report.
 
-   Each subagent reports in the four-state vocabulary: **DONE** (swept its scope, findings attached), **DONE_WITH_CONCERNS** (findings attached, but flag caveats), **BLOCKED** (could not complete — say why), **NEEDS_CONTEXT** (needs input the prompt did not supply before it can proceed). Re-dispatch BLOCKED and NEEDS_CONTEXT streams with the missing piece rather than accepting a partial sweep.
+   Each subagent reports in the four-state vocabulary: **DONE** (swept its scope, findings attached), **DONE_WITH_CONCERNS** (findings attached, but flag caveats), **BLOCKED** (could not complete — say why), **NEEDS_CONTEXT** (needs input the prompt did not supply before it can proceed). Re-dispatch BLOCKED and NEEDS_CONTEXT streams with the missing piece rather than accepting a partial sweep. This fan-out is a read-only wave: once its streams (including the step-3 ingestion harvest) have all returned, run the **Read-only gate (runs after every subagent wave)** below before any finding is consumed.
 
    **Workflow tool (optional upgrade).** Where a project- or user-level `.claude/workflows/` orchestration is available, it may drive this fan-out instead of manual Agent dispatch. It is paid-plan-gated and cannot ship inside this plugin, so it is never assumed — the Agent-tool path above is always the baseline.
 
@@ -91,15 +91,17 @@ Orchestration and the per-item approval gate live here in the main loop. The bul
    - Standalone intent docs: `TODO.md`, `ROADMAP.md`, `NOTES`, scratch/planning markdowns.
    - Unchecked checklist items in documentation (README/docs task lists, design-doc open questions).
 
-   Each harvested item carries its **source location** through to the issue body (e.g. `Source: src/api/handler.ts:88 (TODO comment)` or `Source: ROADMAP.md — "rate-limit the upload endpoint"`), so the trail from declared intent to filed issue is auditable. Harvested items enter the exact same draft → dedupe → approve → create pipeline as the dimension findings; there is no separate track.
+   Each harvested item carries its **source location** through to the issue body (e.g. `Source: src/api/handler.ts:88 (TODO comment)` or `Source: ROADMAP.md — "rate-limit the upload endpoint"`), so the trail from declared intent to filed issue is auditable. Harvested items enter the exact same draft → dedupe → approve → create pipeline as the dimension findings; there is no separate track. This harvest runs inside the same investigation wave as step 2, so the **Read-only gate (runs after every subagent wave)** below governs it too.
 
-   **Read-only gate — post-condition on every subagent wave (hard gate).** Every subagent — the investigation fan-out (steps 2–3) and the verification wave (step 4) alike — was chartered to read and report, never to write. The moment a wave's subagents have all returned — and before anything downstream consumes what they reported — prove that guarantee held. Run:
+### Read-only gate (runs after every subagent wave)
 
-   ```bash
-   git status --porcelain
-   ```
+This gate is a hard, fail-closed post-condition on every subagent wave. Every subagent — the investigation fan-out (steps 2–3) and the verification wave (step 4) alike — was chartered to read and report, never to write. The moment a wave's subagents have all returned — and before anything downstream consumes what they reported — prove that guarantee held. Run:
 
-   Its output must be byte-for-byte identical to the baseline recorded in step 1. Any added, changed, or removed line means a subagent created, modified, or deleted a file — a read-only violation, not a finding. On any difference, **HALT the audit immediately**: do not advance to any further wave, do not dedupe, do not draft, do not open the approval gate, and create nothing. Report exactly what changed — the differing `git status --porcelain` lines, verbatim — and stop until the tree is restored to the baseline and the cause is understood. This gate is mechanical and fail-closed: a changed tree is always a halt, never a caveat to note and pass.
+```bash
+git status --porcelain
+```
+
+Its output must be byte-for-byte identical to the baseline recorded in step 1. Any added, changed, or removed line means a subagent created, modified, or deleted a file — a read-only violation, not a finding. On any difference, **HALT the audit immediately**: do not advance to any further wave, do not dedupe, do not draft, do not open the approval gate, and create nothing. Report exactly what changed — the differing `git status --porcelain` lines, verbatim — and stop until the tree is restored to the baseline and the cause is understood. This gate is mechanical and fail-closed: a changed tree is always a halt, never a caveat to note and pass.
 
 4. **Adversarial verification pass (parallel read-only skeptic subagents):**
 
@@ -112,7 +114,7 @@ Orchestration and the per-item approval gate live here in the main loop. The bul
 
    Charter each skeptic with the same **dispatch discipline** as step 2: **focused** (one coherent group of findings, non-overlapping with the other skeptics), **self-contained** (the prompt carries the findings to check, their cited file:line locations, and the refute-not-rubber-stamp charter; the subagent must not create issues, edit the board, branch, or commit — it reads and reports only), and **output-format-specified** (per finding: the CONFIRMED / REFUTED / CANNOT-VERIFY verdict and its evidence). Each skeptic also reports its own completion in the four-state vocabulary — **DONE**, **DONE_WITH_CONCERNS**, **BLOCKED**, **NEEDS_CONTEXT** — and BLOCKED or NEEDS_CONTEXT streams are re-dispatched with the missing piece, never accepted as a partial verification.
 
-   When the skeptics return, run the **read-only gate above** again before any verdict reaches the dedupe or a draft. Then reconcile overlaps **across** groups in the main loop — the same gap surfaced by two different skeptic groups collapses to one finding. This cross-group reconciliation stays in the main loop because it needs the full surviving set and is cheap; only the per-group verification and within-group merge fan out.
+   When the skeptics return, run the **Read-only gate (runs after every subagent wave)** above again before any verdict reaches the dedupe or a draft. Then reconcile overlaps **across** groups in the main loop — the same gap surfaced by two different skeptic groups collapses to one finding. This cross-group reconciliation stays in the main loop because it needs the full surviving set and is cheap; only the per-group verification and within-group merge fan out.
 
 5. **Cross-reference (dedupe against what already exists):**
    - Do not suggest tasks already open in GitHub Issues.
@@ -133,20 +135,31 @@ Orchestration and the per-item approval gate live here in the main loop. The bul
      ```bash
      ISSUE_URL=$(gh issue create --title "..." --body "..." --label "label1,label2")
      ITEM_ID=$(gh project item-add <project.number> --owner <owner> --url "$ISSUE_URL" --format json | jq -r '.id')
-     # Status = Ready
-     gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
-       --field-id <fields.status.id> --single-select-option-id <fields.status.options.ready>
-     # Priority
-     gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
-       --field-id <fields.priority.id> --single-select-option-id <fields.priority.options.CHOSEN>
-     # Effort
-     gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
-       --field-id <fields.effort.id> --single-select-option-id <fields.effort.options.CHOSEN>
-     # Type
-     gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
-       --field-id <fields.type.id> --single-select-option-id <fields.type.options.CHOSEN>
      ```
-     Set dependencies via the mutation at `${CLAUDE_PLUGIN_ROOT}/shared/queries/add-blocked-by.graphql` if applicable.
+     **Attach dependencies before the status write.** Add every blockedBy relationship this finding carries via the mutation at `${CLAUDE_PLUGIN_ROOT}/shared/queries/add-blocked-by.graphql`, so the dependency set is on record before the Status is decided.
+
+     **Pre-Ready dependency check (limb 5 of the invariant).** Query the state of every blockedBy relationship just attached and confirm each blocker is CLOSED with stateReason COMPLETED. Then set the Status accordingly:
+     - **Every blocker closed/completed (or none):** file it as Ready with its project fields:
+       ```bash
+       # Status = Ready
+       gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
+         --field-id <fields.status.id> --single-select-option-id <fields.status.options.ready>
+       # Priority
+       gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
+         --field-id <fields.priority.id> --single-select-option-id <fields.priority.options.CHOSEN>
+       # Effort
+       gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
+         --field-id <fields.effort.id> --single-select-option-id <fields.effort.options.CHOSEN>
+       # Type
+       gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
+         --field-id <fields.type.id> --single-select-option-id <fields.type.options.CHOSEN>
+       ```
+     - **Any blocker still open:** the finding is NOT Ready — file it as Backlog instead (the dependency stays recorded from the attach step) and tell the user it stays blocked until the open blocker closes:
+       ```bash
+       # Status = Backlog (blocked by an open issue)
+       gh project item-edit --project-id <project.nodeId> --id "$ITEM_ID" \
+         --field-id <fields.status.id> --single-select-option-id <fields.status.options.backlog>
+       ```
 
    - **Backlog findings:**
      ```bash

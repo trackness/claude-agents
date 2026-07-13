@@ -127,7 +127,8 @@ shared/                 Library shared across skills and the agent
   templates/
     issue-body.md       Single source for the issue body format + Ready invariant
   queries/
-    add-blocked-by.graphql  Dependency mutation (audit + promote)
+    add-blocked-by.graphql        Dependency mutation (audit + promote)
+    combined-issue-query.graphql  Issue deps + sub-issue siblings + linked branches (task + ship)
 skills/
   setup-project/        Bootstrap / adopt a repo
     templates/
@@ -138,7 +139,7 @@ skills/
   promote/              Promote a Backlog issue to Ready (research + spec)
     queries/add-sub-issue.graphql
   task/                 Implement a Ready issue end-to-end
-    queries/            GraphQL for issue lookup + branch linking
+    queries/            GraphQL for branch linking (create-linked-branch)
   ship/                 Commit, PR, review, CI gate, merge
   status/               Read-only board observability
   audit/                Codebase gap analysis + intent ingestion

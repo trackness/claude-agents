@@ -104,7 +104,8 @@ gh-pm/
 │   ├── templates/
 │   │   └── issue-body.md                # Single source for the issue body format
 │   └── queries/
-│       └── add-blocked-by.graphql       # Dependency mutation (audit + promote)
+│       ├── add-blocked-by.graphql        # Dependency mutation (audit + promote)
+│       └── combined-issue-query.graphql  # Issue deps, siblings, linked branches (task + ship)
 │
 └── skills/
     ├── setup-project/
@@ -130,7 +131,6 @@ gh-pm/
     ├── task/
     │   ├── SKILL.md                     # Implement a Ready issue end-to-end
     │   └── queries/
-    │       ├── combined-issue-query.graphql
     │       └── create-linked-branch.graphql
     │
     ├── ship/
