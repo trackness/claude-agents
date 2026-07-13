@@ -21,10 +21,16 @@ cd "$CWD" 2>/dev/null || exit 0
 git rev-parse --git-dir >/dev/null 2>&1 || exit 0
 git remote -v 2>/dev/null | grep -qi 'github\.com' || exit 0
 
-# Durable opt-out: the user declined and left a sentinel. Stay silent forever.
-[ -f .claude/gh-pm-optout ] && exit 0
+# Resolve the repo root so the opt-out sentinel and project.json are found even
+# when the session starts in a subdirectory below the repo root (a relative
+# .claude/... path would miss them and the nudge would silently no-op).
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+[ -n "$ROOT" ] || ROOT="$CWD"
 
-PROJECT_JSON=".claude/project.json"
+# Durable opt-out: the user declined and left a sentinel. Stay silent forever.
+[ -f "$ROOT/.claude/gh-pm-optout" ] && exit 0
+
+PROJECT_JSON="$ROOT/.claude/project.json"
 
 # Nudge case 1 — unconfigured: has a GitHub remote but no project config yet.
 if [ ! -f "$PROJECT_JSON" ]; then

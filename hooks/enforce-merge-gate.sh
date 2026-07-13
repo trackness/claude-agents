@@ -23,8 +23,12 @@ CWD=$(echo "$INPUT" | jq -r '.cwd // ""')
 # boundary so `merge-queue` and the like do not match.
 echo "$COMMAND" | grep -qE '(^|[;&|(])[[:space:]]*((sudo|env|time|command|xargs|nice|nohup)[[:space:]]+)*gh[[:space:]]+pr[[:space:]]+merge([[:space:]]|$)' || exit 0
 
-# No config file, no gate.
-PROJECT_JSON="$CWD/.claude/project.json"
+# No config file, no gate. Resolve the repo root first so the gate still fires
+# when CWD is a subdirectory below the repo root ($CWD/.claude/project.json would
+# miss the file and the gate would silently no-op).
+ROOT=$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)
+[ -n "$ROOT" ] || ROOT="$CWD"
+PROJECT_JSON="$ROOT/.claude/project.json"
 [ -f "$PROJECT_JSON" ] || exit 0
 
 # Read ship.autoMerge. Only the explicit boolean false raises the prompt:
