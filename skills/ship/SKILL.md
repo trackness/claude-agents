@@ -115,7 +115,7 @@ Extract and hold in context:
 
 11. **Sub-issue roll-up:**
 
-   For each issue this run set to Done, check whether it has a parent and whether that parent's other sub-issues are now all closed. The combined-issue query already returns exactly this shape — the issue's `parent` plus that parent's `subIssues` with their `state` — so run `${CLAUDE_PLUGIN_ROOT}/skills/task/queries/combined-issue-query.graphql` for the Done issue's number (substitute owner, repo, number) rather than composing raw API calls.
+   For each issue this run set to Done, check whether it has a parent and whether that parent's other sub-issues are now all closed. The combined-issue query already returns exactly this shape — the issue's `parent` plus that parent's `subIssues` with their `state` — so run `${CLAUDE_PLUGIN_ROOT}/shared/queries/combined-issue-query.graphql` for the Done issue's number (substitute owner, repo, number) rather than composing raw API calls.
 
    - **No `parent`** — nothing to roll up.
    - **`subIssues.pageInfo.hasNextPage` is `true`** — the parent has more sub-issues than this page returned (the query fetches `first: 100`). Do NOT declare the parent complete from a partial page: paginate through the rest (`after` the returned end cursor, or fetch the parent's sub-issues directly) and only judge completeness once every sub-issue's `state` is in hand. A parent that looks all-closed on page one may still have an open child on page two.
